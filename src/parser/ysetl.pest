@@ -1,0 +1,97 @@
+Input = _{ SOI ~ Primary ~ EOI }
+
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ dbl_slash ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+
+// Symbols
+// TODO: Check if there is a (major) perf difference between this and using the symbols directly in other rules
+at = _{ "@" }
+semicolon = _{ ";" }
+colon = _{ ":" }
+eq = _{ "=" }
+pipe = _{ "|" }
+dot = _{ "." }
+hash = _{ "#" }
+qstmark = _{ "?" }
+star = _{ "*" }
+slash = _{ "/" }
+plus = _{ "+" }
+dash = _{ "-" }
+lodash = _{ "_" }
+quote = _{ "\"" }
+lt = _{ "<" }
+gt = _{ ">" }
+percent = _{ "%" }
+tilde = _{ "~" }
+comma = _{ "," }
+b_slash = _{ "\\" }
+
+l_brace = _{ "{" }
+r_brace = _{ "}" }
+l_paren = _{ "(" }
+r_paren = _{ ")" }
+l_brack = _{ "[" }
+r_brack = _{ "]" }
+
+bollocks = _{ ":=" }
+dbl_dot = _{ ".." }
+dbl_star = _{ "**" }
+dbl_slash = _{ "//" }
+dbl_amp = _{ "&&" }
+dbl_pipe = _{ "||" }
+dbl_lt = _{ "<<" }
+dbl_gt = _{ ">>" }
+bang_eq = _{ "!=" }
+lt_eq = _{ "<=" }
+gt_eq = _{ ">=" }
+arrow = _{ "=>" }
+
+// Keywords
+
+null = { "null" }
+true = { "true" }
+false = { "false" }
+bool = _{ true | false }
+newat = { "newat" }
+opt = { "opt" }
+value = { "value" }
+func = { "func" }
+
+// Literals
+
+atom_keep = { ( ASCII_ALPHANUMERIC | lodash )+ }
+atom = ${
+   colon ~ atom_keep
+}
+
+number_dash = { dash? }
+number_base = { ASCII_DIGIT+ }
+number_decimal = { (dot ~ ASCII_DIGIT+)? }
+number_exp = { ((^"e" | ^"f") ~ (plus | dash)? ~ ASCII_DIGIT+)? }
+number = ${
+   number_dash
+   ~ number_base
+   ~ number_decimal
+   ~ number_exp
+}
+
+string_char = {
+   !(quote | b_slash) ~ ANY
+   | b_slash ~ ( quote | b_slash | "n" | "t" )
+}
+string_inner = @{ string_char* }
+string = ${ quote ~ string_inner ~ quote }
+
+ident = @{ (ASCII_ALPHA | lodash) ~ (ASCII_ALPHANUMERIC | lodash)* }
+
+// Expressions
+
+Primary = _{
+   | null // More ubiquitous than "OM"
+   | newat
+   | bool
+   | atom
+   | number
+   | string
+   | ident // Must follow primary keywords and function literal
+}
