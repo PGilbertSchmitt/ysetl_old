@@ -4,6 +4,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 
 use super::ast::ExprST;
+use super::ast::Op;
 
 #[derive(Parser)]
 #[grammar="parser/ysetl.pest"]
@@ -55,6 +56,10 @@ fn number_value(number_pair: Pair<Rule>) -> ExprST {
     )
 }
 
+/* 
+ * This seems a little silly, but YSETL's float literals are ALMOST the same as rusts,
+ * with the only exception being that the exponent marker can be 'e', 'E', 'f', or 'F'.
+ */
 fn construct_number(
     dash: &str,
     base: &str,
@@ -84,9 +89,18 @@ fn construct_number(
 }
 
 #[allow(dead_code)]
-fn inspect(pair: Pair<Rule>) -> ExprST {
-    println!("{:?}", pair);
-    ExprST::Null
+fn inspect(input: Pair<Rule>) -> Result<ExprST, String> {
+    println!("{:?}", input);
+    Ok(ExprST::Null)
+}
+
+fn parse_nonassoc_infix(input: Pair<Rule>, op: Op) -> ExprST {
+    let mut parts = input.into_inner();
+    let first = parse_expr(parts.next().unwrap()).unwrap();
+    match parts.next() {
+        Some(second) => ExprST::Infix(op, Box::new(first), Box::new(parse_expr(second).unwrap())),
+        None => first,
+    }
 }
 
 fn parse_expr(input: Pair<Rule>) -> Result<ExprST, String> {
@@ -99,6 +113,7 @@ fn parse_expr(input: Pair<Rule>) -> Result<ExprST, String> {
         Rule::string => Ok(ExprST::String(string_value(input))),
         Rule::ident => Ok(ExprST::Ident(input.as_str())),
         Rule::number => Ok(number_value(input)),
+        Rule::tuple_start_expr => Ok(parse_nonassoc_infix(input, Op::At)),
         _ => {
            Err(format!("Unexpected expression type: {:?}", input.as_rule()))
         }

@@ -2,7 +2,7 @@ program :rubric;
 
 null;
 foo_bar;
-newat;
+(newat);
 true;
 false;
 null;
@@ -10,4 +10,7 @@ null;
 100;
 0;
 -003;
-5F-3
+
+5F-3;
+
+a @ b;

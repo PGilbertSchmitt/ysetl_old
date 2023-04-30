@@ -98,8 +98,13 @@ primary = _{
    | number
    | string
    | ident // Must follow primary keywords and function literal
+   | nested_expression // The absolute lowest priority
 }
 
-expr = _{ primary }
+nested_expression = _{ l_paren ~ expr ~ r_paren }
 
-expr_list = { expr ~ (comma ~ expr)* }
+tuple_start_expr = { primary ~ (at ~ primary)* }
+
+expr = _{ tuple_start_expr }
+
+// expr_list = { expr ~ (comma ~ expr)* }

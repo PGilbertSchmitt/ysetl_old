@@ -1,4 +1,9 @@
 #[derive(Debug)]
+pub enum Op {
+    At,
+}
+
+#[derive(Debug)]
 pub enum ExprST<'a> {
     Null,
     Newat,
@@ -9,4 +14,5 @@ pub enum ExprST<'a> {
     Ident(&'a str),
     Integer(i64),
     Float(f64),
+    Infix(Op, Box<ExprST<'a>>, Box<ExprST<'a>>),
 }
