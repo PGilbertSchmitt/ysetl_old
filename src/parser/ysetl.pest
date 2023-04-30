@@ -1,7 +1,11 @@
-Input = _{ SOI ~ Primary ~ EOI }
+program_input = _{ SOI ~ (program | program_missing_expr) ~ EOI }
+repl_input = _{ SOI ~ expr ~ EOI }
 
-WHITESPACE = _{ " " | "\t" }
-COMMENT = _{ dbl_slash ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+program = { "program" ~ atom ~ semicolon ~ expr ~ (semicolon ~ expr)* ~ semicolon?}
+program_missing_expr = { "program" ~ atom ~ semicolon? } // Example of parse-error-catcher
+
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{ dbl_slash ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
 
 // Symbols
 // TODO: Check if there is a (major) perf difference between this and using the symbols directly in other rules
@@ -49,9 +53,8 @@ arrow = _{ "=>" }
 // Keywords
 
 null = { "null" }
-true = { "true" }
-false = { "false" }
-bool = _{ true | false }
+true_ = { "true" }
+false_ = { "false" }
 newat = { "newat" }
 opt = { "opt" }
 value = { "value" }
@@ -86,12 +89,17 @@ ident = @{ (ASCII_ALPHA | lodash) ~ (ASCII_ALPHANUMERIC | lodash)* }
 
 // Expressions
 
-Primary = _{
-   | null // More ubiquitous than "OM"
+primary = _{
+     null // More ubiquitous than "OM"
    | newat
-   | bool
+   | true_
+   | false_
    | atom
    | number
    | string
    | ident // Must follow primary keywords and function literal
 }
+
+expr = _{ primary }
+
+expr_list = { expr ~ (comma ~ expr)* }

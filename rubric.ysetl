@@ -1,1 +1,13 @@
-foo_bar
+program :rubric;
+
+null;
+foo_bar;
+newat;
+true;
+false;
+null;
+"hello, world";
+100;
+0;
+-003;
+5F-3
