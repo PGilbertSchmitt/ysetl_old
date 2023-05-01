@@ -1,7 +1,7 @@
 use pest::Parser;
 use pest_derive::Parser;
 use pest::error::Error;
-use pest::iterators::Pair;
+use pest::iterators::{Pair, Pairs};
 
 use super::ast::ExprST;
 use super::ast::Op;
@@ -22,12 +22,10 @@ pub fn parse_program(input: &str) -> Result<(), Error<Rule>> {
                 .unwrap();
             let program_name = atom_value(name_node);
 
-            println!(
-                "Program '{:?}' contains expressions of types: {:?}",
-                program_name,
-                inner.map(|p| parse_expr(p)).collect::<Vec<_>>()
-            );
-
+            println!("Executing program '{}'", program_name);
+            for pair in inner {
+                println!("{} -> {:?}", pair.as_str(), parse_expr(pair));
+            }
         },
         Rule::program_missing_expr => {
             println!("Program must have at least one expression");
@@ -94,11 +92,85 @@ fn inspect(input: Pair<Rule>) -> Result<ExprST, String> {
     Ok(ExprST::Null)
 }
 
-fn parse_nonassoc_infix(input: Pair<Rule>, op: Op) -> ExprST {
-    let mut parts = input.into_inner();
+fn to_op(input: &Pair<Rule>) -> Option<Op> {
+    let rule = input.as_rule();
+    match rule {
+        Rule::at => Some(Op::At),
+        Rule::dbl_qst => Some(Op::NullCoal),
+        Rule::dbl_star => Some(Op::Exp),
+        Rule::star => Some(Op::Mult),
+        Rule::inter => Some(Op::Inter),
+        Rule::slash => Some(Op::Div),
+        Rule::div => Some(Op::IntDiv),
+        Rule::mod_ => Some(Op::IntDiv),
+        Rule::plus => Some(Op::Add),
+        Rule::dash => Some(Op::Subtract),
+        Rule::with => Some(Op::With),
+        Rule::less => Some(Op::Less),
+        Rule::union_ => Some(Op::Union),
+        _ => None,
+    }
+}
+
+fn parse_nonassoc_infix(mut parts: Pairs<Rule>) -> ExprST {
     let first = parse_expr(parts.next().unwrap()).unwrap();
     match parts.next() {
-        Some(second) => ExprST::Infix(op, Box::new(first), Box::new(parse_expr(second).unwrap())),
+        Some(op_rule) => ExprST::Infix {
+            op: to_op(&op_rule).unwrap(),
+            left: Box::new(first),
+            right: Box::new(parse_expr(parts.next().unwrap()).unwrap()),
+            // Maybe check if there are more parts?
+        },
+        None => first,
+    }
+}
+
+fn parse_right_assoc_infix(mut parts: Pairs<Rule>) -> ExprST {
+    let first = parse_expr(parts.next().unwrap()).unwrap();
+    match parts.next() {
+        Some(op_rule) => ExprST::Infix {
+            op: to_op(&op_rule).unwrap(),
+            left: Box::new(first),
+            right: Box::new(parse_right_assoc_infix(parts)),
+        },
+        None => first,
+    }
+}
+
+fn parse_left_assoc_infix(mut parts: Pairs<Rule>) -> ExprST {
+    let last = parse_expr(parts.next_back().unwrap()).unwrap();
+    match parts.next_back() {
+        Some(op_rule) => ExprST::Infix {
+            op: to_op(&op_rule).unwrap(),
+            left: Box::new(parse_left_assoc_infix(parts)),
+            right: Box::new(last),
+        },
+        None => last
+    }
+}
+
+// More specific than the general non-assoc parse handler
+fn parse_reduce_infix(mut parts: Pairs<Rule>) -> ExprST {
+    let first = parse_expr(parts.next().unwrap()).unwrap();
+    match parts.next() {
+        Some(_) => {
+            let operation = parts.next().unwrap();
+            match to_op(&operation) {
+                Some(op) => ExprST::ReduceWithOp {
+                    op: op,
+                    left: Box::new(first),
+                    right: Box::new(parse_expr(parts.next().unwrap()).unwrap()),
+                },  
+                // If `to_op` doesn't catch the operation pair, than it's an infix binop, and
+                // the operation is actually just a dot which can be ignored in favor of the
+                // following token
+                None => ExprST::ReduceWithExpr {
+                    apply: Box::new(parse_expr(parts.next().unwrap()).unwrap()),
+                    left: Box::new(first),
+                    right: Box::new(parse_expr(parts.next().unwrap()).unwrap()),
+                },
+            }
+        },
         None => first,
     }
 }
@@ -113,7 +185,12 @@ fn parse_expr(input: Pair<Rule>) -> Result<ExprST, String> {
         Rule::string => Ok(ExprST::String(string_value(input))),
         Rule::ident => Ok(ExprST::Ident(input.as_str())),
         Rule::number => Ok(number_value(input)),
-        Rule::tuple_start_expr => Ok(parse_nonassoc_infix(input, Op::At)),
+        Rule::null_coal_expr => Ok(parse_right_assoc_infix(input.into_inner())),
+        Rule::tuple_start_expr => Ok(parse_nonassoc_infix(input.into_inner())),
+        Rule::reduce_expr => Ok(parse_reduce_infix(input.into_inner())),
+        Rule::exponent_expr => Ok(parse_right_assoc_infix(input.into_inner())),
+        Rule::mult_expr => Ok(parse_left_assoc_infix(input.into_inner())),
+        Rule::add_expr => Ok(parse_left_assoc_infix(input.into_inner())),
         _ => {
            Err(format!("Unexpected expression type: {:?}", input.as_rule()))
         }

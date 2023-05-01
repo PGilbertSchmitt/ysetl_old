@@ -7,26 +7,39 @@ program_missing_expr = { "program" ~ atom ~ semicolon? } // Example of parse-err
 WHITESPACE = _{ " " | "\t" | NEWLINE }
 COMMENT = _{ dbl_slash ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
 
-// Symbols
-// TODO: Check if there is a (major) perf difference between this and using the symbols directly in other rules
-at = _{ "@" }
+// Keywords
+
+null = { "null" }
+true_ = { "true" }
+false_ = { "false" }
+newat = { "newat" }
+opt = { "opt" }
+value = { "value" }
+func = { "func" }
+
+mod_ = { "mod" }
+div = { "div" }
+inter = { "inter" }
+with = { "with" }
+less = { "less" }
+union_ = { "union" }
+in = { "in" }
+notin = { "notin" }
+subset = { "subset" }
+not = { "not" }
+and = { "and" }
+or = { "or" }
+impl = { "impl" }
+iff = { "iff" }
+exists = { "exists" }
+forall = { "forall" }
+choose = { "choose" }
+where = { "where" }
+
+// Non-operator Symbols
+
 semicolon = _{ ";" }
 colon = _{ ":" }
-eq = _{ "=" }
-pipe = _{ "|" }
-dot = _{ "." }
-hash = _{ "#" }
-qstmark = _{ "?" }
-star = _{ "*" }
-slash = _{ "/" }
-plus = _{ "+" }
-dash = _{ "-" }
-lodash = _{ "_" }
-quote = _{ "\"" }
-lt = _{ "<" }
-gt = _{ ">" }
-percent = _{ "%" }
-tilde = _{ "~" }
 comma = _{ "," }
 b_slash = _{ "\\" }
 
@@ -37,28 +50,86 @@ r_paren = _{ ")" }
 l_brack = _{ "[" }
 r_brack = _{ "]" }
 
-bollocks = _{ ":=" }
-dbl_dot = _{ ".." }
-dbl_star = _{ "**" }
-dbl_slash = _{ "//" }
-dbl_amp = _{ "&&" }
-dbl_pipe = _{ "||" }
-dbl_lt = _{ "<<" }
-dbl_gt = _{ ">>" }
-bang_eq = _{ "!=" }
-lt_eq = _{ "<=" }
-gt_eq = _{ ">=" }
-arrow = _{ "=>" }
+// Operator symbols
 
-// Keywords
+at = { "@" }
+eq = { "=" }
+pipe = { "|" }
+dot = { "." }
+hash = { "#" }
+qst = { "?" }
+star = { "*" }
+slash = { "/" }
+plus = { "+" }
+dash = { "-" }
+lodash = { "_" }
+quote = { "\"" }
+lt = { "<" }
+gt = { ">" }
+percent = { "%" }
+tilde = { "~" }
 
-null = { "null" }
-true_ = { "true" }
-false_ = { "false" }
-newat = { "newat" }
-opt = { "opt" }
-value = { "value" }
-func = { "func" }
+bollocks = { ":=" }
+dbl_dot = { ".." }
+dbl_star = { "**" }
+dbl_slash = { "//" }
+dbl_qst = { "??" }
+dbl_amp = { "&&" }
+dbl_pipe = { "||" }
+dbl_lt = { "<<" }
+dbl_gt = { ">>" }
+bang_eq = { "!=" }
+lt_eq = { "<=" }
+gt_eq = { ">=" }
+arrow = { "=>" }
+
+// Operator groups
+
+unary_op        = _{ hash | dash | plus | at }
+
+tuple_start_op  = _{ at }
+
+expr_or_op      = _{ qst }
+
+reduce_op       = _{ percent }
+
+exp_op          = _{ dbl_star }
+
+mult_op         = _{ star | slash | mod_ | div | inter }
+
+add_op          = _{ plus | dash | with | less | union_ }
+
+infix_id_func   = _{ ident }
+infix_expr_func = _{ l_paren ~ expr ~ r_paren }
+infix_op        = _{ dot ~ (infix_id_func | infix_expr_func) }
+
+set_op          = _{ in | notin | subset }
+
+compare_op      = _{ lt | lt_eq | gt | gt_eq | eq | bang_eq }
+
+not_op          = _{ not }
+
+and_op          = _{ and | dbl_amp }
+
+or_op           = _{ or | dbl_pipe }
+
+impl_op         = _{ impl }
+
+iff_op          = _{ iff }
+
+select_op       = _{ exists | forall | choose }
+
+where_op        = _{ where }
+
+bin_op = _{
+     exp_op
+   | mult_op
+   | add_op
+   | and_op
+   | or_op
+   | impl_op
+   | infix_op
+}
 
 // Literals
 
@@ -98,13 +169,28 @@ primary = _{
    | number
    | string
    | ident // Must follow primary keywords and function literal
-   | nested_expression // The absolute lowest priority
+   | nested_expression // The absolute highest priority
 }
+
+// This precencende climbing method is what I'm used to with PEG parsers
+// However, it appears to use a lot of memory due to a primary being wrapped
+// with layers and layers of other expressions. Maybe I need to use a Pratt
+// parser instead.
 
 nested_expression = _{ l_paren ~ expr ~ r_paren }
 
-tuple_start_expr = { primary ~ (at ~ primary)* }
+null_coal_expr = { primary ~ (dbl_qst ~ primary)* }
 
-expr = _{ tuple_start_expr }
+tuple_start_expr = { null_coal_expr ~ (at ~ null_coal_expr)? }
+
+reduce_expr = { tuple_start_expr ~ (percent ~ bin_op ~ tuple_start_expr)? }
+
+exponent_expr = { reduce_expr ~ (exp_op ~ reduce_expr)* }
+
+mult_expr = { exponent_expr ~ (mult_op ~ exponent_expr)* }
+
+add_expr = { mult_expr ~ (add_op ~ mult_expr)* }
+
+expr = _{ add_expr }
 
 // expr_list = { expr ~ (comma ~ expr)* }
