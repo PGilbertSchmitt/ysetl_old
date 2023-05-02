@@ -20,7 +20,7 @@ a @ b;
 input %* literals;
 input %(bar + jar) literals;
 input %foo literals;
-//input .foo other;
+input .foo other;
 
 aaaa %foo bbbb %bar cccc;
 
@@ -28,3 +28,5 @@ aaaa %foo bbbb %bar cccc;
 9 * 8 * 6;
 9 + 2 - 7;
 1 * 2 + 3 * 4;
+
+-not !#@lotta_unaries;

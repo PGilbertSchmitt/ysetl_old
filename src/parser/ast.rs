@@ -16,6 +16,15 @@ pub enum BinOp {
 }
 
 #[derive(Debug)]
+pub enum PreOp {
+    Negate,
+    Id,
+    DynVar, // Dynamic variable
+    Size,
+    Not,
+}
+
+#[derive(Debug)]
 pub enum ExprST<'a> {
     Null,
     Newat,
@@ -29,4 +38,7 @@ pub enum ExprST<'a> {
     Infix{op: BinOp, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
     ReduceWithOp{op: BinOp, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
     ReduceWithExpr{apply: Box<ExprST<'a>>, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
+    InfixInject{apply: Box<ExprST<'a>>, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
+    Prefix{op: PreOp, right: Box<ExprST<'a>>},
+    Call{left: Box<ExprST<'a>>}, // Needs info about selectors
 }

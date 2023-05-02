@@ -5,7 +5,7 @@ use pest::iterators::{Pair};
 use pest::pratt_parser::PrattParser;
 use lazy_static;
 
-use super::ast::ExprST;
+use super::ast::{ExprST, PreOp};
 use super::ast::BinOp;
 
 #[derive(Parser)]
@@ -19,6 +19,8 @@ lazy_static::lazy_static! {
         use pest::pratt_parser::{Op, Assoc};
         
         PrattParser::new()
+            .op(Op::prefix(Rule::not)) // Same as Rule::bang, but with much lower precedence
+            .op(Op::infix(Rule::infix_inject, Assoc::Left))
             .op(Op::infix(Rule::plus, Assoc::Left) |
                 Op::infix(Rule::dash, Assoc::Left) |
                 Op::infix(Rule::with, Assoc::Left) |
@@ -35,6 +37,13 @@ lazy_static::lazy_static! {
             .op(Op::infix(Rule::reduce_op, Assoc::Right))
             .op(Op::infix(Rule::dbl_qst, Assoc::Right))
             .op(Op::infix(Rule::at, Assoc::Right))
+            .op(Op::prefix(Rule::dash_pre) |
+                Op::prefix(Rule::plus_pre) |
+                Op::prefix(Rule::at_pre) |
+                Op::prefix(Rule::hash) |
+                Op::prefix(Rule::bang)
+            )
+            .op(Op::postfix(Rule::empty_call))
     };
 }
 
@@ -51,8 +60,9 @@ pub fn parse_program(input: &str) -> Result<(), Error<Rule>> {
             let program_name = atom_value(name_node);
 
             println!("Executing program '{}'", program_name);
-            println!("Rest of program\n\n{:?}\n\n", inner);
-            for pair in inner {
+
+            for pair in inner { 
+                // println!("{:?}", pair);
                 println!("{} -> {:?}", pair.as_str(), parse_expr(pair));
             }
         },
@@ -79,7 +89,6 @@ fn number_value(number_pair: Pair<Rule>) -> ExprST {
         number_parts.next().unwrap(),
         number_parts.next().unwrap(),
         number_parts.next().unwrap(),
-        number_parts.next().unwrap(),
     )
 }
 
@@ -88,14 +97,12 @@ fn number_value(number_pair: Pair<Rule>) -> ExprST {
  * with the only exception being that the exponent marker can be 'e', 'E', 'f', or 'F'.
  */
 fn construct_number(
-    dash: &str,
     base: &str,
     decimal: &str,
     exp: &str,
 ) -> ExprST<'static> {
     let mut is_float = false;
-    let mut number_str = dash.to_owned();
-    number_str = number_str + base;
+    let mut number_str = base.to_owned();
 
     if decimal != "" {
         is_float = true;
@@ -148,6 +155,10 @@ fn to_infix<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: BinOp) -> ExprResu
     })
 }
 
+fn to_prefix<'a>(rhs: ExprResult<'a>, op: PreOp) -> ExprResult<'a> {
+    Ok(ExprST::Prefix { op, right: Box::new(rhs?) })
+}
+
 fn to_reduce_expr<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Rule>) -> ExprResult<'a> {
     let inner_op = op.into_inner().next().unwrap();
     let left = Box::new(lhs?);
@@ -164,6 +175,15 @@ fn to_reduce_expr<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Rul
             right,
         })
     }
+}
+
+fn to_infix_inject<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Rule>) -> ExprResult<'a> {
+    let inner_op = op.into_inner().next().unwrap();
+    Ok(ExprST::InfixInject {
+        apply: Box::new(map_primary_to_expr(inner_op).unwrap()),
+        left: Box::new(lhs?),
+        right: Box::new(rhs?)
+    })
 }
 
 fn map_primary_to_expr(primary: Pair<Rule>) -> ExprResult {
@@ -184,6 +204,23 @@ fn map_primary_to_expr(primary: Pair<Rule>) -> ExprResult {
 fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
     PRATT_PARSER
         .map_primary(map_primary_to_expr)
+        .map_prefix(|prefix, rhs| {
+            match prefix.as_rule() {
+                Rule::dash_pre => to_prefix(rhs, PreOp::Negate),
+                Rule::plus_pre => to_prefix(rhs, PreOp::Id),
+                Rule::at_pre => to_prefix(rhs, PreOp::DynVar),
+                Rule::hash => to_prefix(rhs, PreOp::Size),
+                Rule::bang => to_prefix(rhs, PreOp::Not),
+                Rule::not => to_prefix(rhs, PreOp::Not),
+                rule => unreachable!("parse_expr expected prefix expression, received {:?}", rule),
+            }
+        })
+        .map_postfix(|lhs, postfix| {
+            match postfix.as_rule() {
+                Rule::empty_call => Ok(ExprST::Call { left: Box::new(lhs?) }),
+                rule => unreachable!("parse_expr expected postfix expression, received {:?}", rule),
+            }
+        })
         .map_infix(|lhs, op, rhs| {
             let op_rule = op.as_rule();
             match op_rule {
@@ -203,8 +240,8 @@ fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
                 | Rule::at => to_infix(lhs, rhs, to_binop(op_rule)),
 
                 // Special operator infix
-                // Rule::reduce_op => inspect(op),
                 Rule::reduce_op => to_reduce_expr(lhs, rhs, op),
+                Rule::infix_inject => to_infix_inject(lhs, rhs, op),
                 rule => unreachable!("parse_expr expected infix expression, received {:?}", rule),
             }
         })

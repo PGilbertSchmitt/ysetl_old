@@ -26,7 +26,7 @@ union_ = { "union" }
 in = { "in" }
 notin = { "notin" }
 subset = { "subset" }
-not = { "not" }
+not = @{ "not" ~ WHITESPACE }
 and = { "and" }
 or = { "or" }
 impl = { "impl" }
@@ -56,21 +56,27 @@ l_brack = _{ "[" }
 r_brack = _{ "]" }
 
 // Operator symbols
+// I need to use separate rules for symbols that can be either prefix or infix,
+// otherwise the pratt parser has a fit.
 
 at = { "@" }
+at_pre = { "@" }
+plus = { "+" }
+plus_pre = { "+" }
+dash = { "-" }
+dash_pre = { "-" }
 eq = { "=" }
 pipe = { "|" }
-dot = { "." }
+dot = _{ "." }
 hash = { "#" }
 qst = { "?" }
 star = { "*" }
 slash = { "/" }
-plus = { "+" }
-dash = { "-" }
 lodash = { "_" }
 lt = { "<" }
 gt = { ">" }
 tilde = { "~" }
+bang = { "!" }
 
 bollocks = { ":=" }
 dbl_dot = { ".." }
@@ -90,7 +96,9 @@ arrow = { "=>" }
 
 nested_expression = { l_paren ~ expr ~ r_paren }
 
-unary_op          = _{ hash | dash | plus | at }
+infix_op          = _{ ident | nested_expression }
+
+prefix_op         = _{ dash_pre | plus_pre | at_pre | hash | bang | not }
 
 tuple_start_op    = _{ at }
 
@@ -104,13 +112,11 @@ mult_op           = _{ star | slash | mod_ | div | inter }
 
 add_op            = _{ plus | dash | with | less | union_ }
 
-infix_op          = _{ ident | nested_expression }
+infix_inject      = { dot ~ infix_op }
 
 set_op            = { in | notin | subset }
 
 compare_op        = { lt | lt_eq | gt | gt_eq | eq | bang_eq }
-
-not_op            = { not }
 
 and_op            = { and | dbl_amp }
 
@@ -131,10 +137,10 @@ bin_op = _{
    | mult_op
    | add_op
    | reduce_op
+   | infix_inject
    // | and_op
    // | or_op
    // | impl_op
-   | infix_op
 }
 
 // Literals
@@ -144,13 +150,11 @@ atom = ${
    colon ~ atom_keep
 }
 
-number_dash = { dash? }
-number_base = { ASCII_DIGIT+ }
-number_decimal = { (dot ~ ASCII_DIGIT+)? }
-number_exp = { ((^"e" | ^"f") ~ (plus | dash)? ~ ASCII_DIGIT+)? }
+number_base = @{ ASCII_DIGIT+ }
+number_decimal = @{ (dot ~ ASCII_DIGIT+)? }
+number_exp = @{ ((^"e" | ^"f") ~ (plus | dash)? ~ ASCII_DIGIT+)? }
 number = ${
-   number_dash
-   ~ number_base
+   number_base
    ~ number_decimal
    ~ number_exp
 }
@@ -178,14 +182,8 @@ primary = _{
    | nested_expression
 }
 
-// postfix_expr = ${
-//    primary ~ ("()")*
-// }
+empty_call = { "()" }
 
-// prefix_expr = ${ unary_op ~ unary }
-
-// unary = _{ prefix_expr | postfix_expr }
-
-bin_expr = { primary ~ (bin_op ~ primary)* }
+bin_expr = { prefix_op* ~ primary ~ empty_call* ~ (bin_op ~ prefix_op* ~ primary ~ empty_call*)* }
 
 expr = _{ bin_expr }
