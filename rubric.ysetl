@@ -1,10 +1,11 @@
 program :rubric;
 
 null;
-foo_bar;
-(newat);
+newat;
 true;
 false;
+foo_bar;
+funny + boi;
 "hello, world";
 100;
 0;
@@ -17,9 +18,15 @@ foo ?? bar ?? baz;
 a @ b;
 
 input %* literals;
-input %.foo literals;
+input %(bar + jar) literals;
+input %foo literals;
+input .foo other;
+
+aaaa %foo bbbb %bar cccc;
 
 2**3**4;
 9 * 8 * 6;
 9 + 2 - 7;
 1 * 2 + 3 * 4;
+
+-not !#@lotta_unaries;

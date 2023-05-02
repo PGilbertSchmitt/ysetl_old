@@ -26,7 +26,7 @@ union_ = { "union" }
 in = { "in" }
 notin = { "notin" }
 subset = { "subset" }
-not = { "not" }
+not = @{ "not" ~ WHITESPACE }
 and = { "and" }
 or = { "or" }
 impl = { "impl" }
@@ -37,11 +37,16 @@ choose = { "choose" }
 where = { "where" }
 
 // Non-operator Symbols
+// Some of these are technically operators, but it's better
+// if they don't produce tokens because they're part of a
+// more complex operator, like `percent`
 
 semicolon = _{ ";" }
 colon = _{ ":" }
 comma = _{ "," }
 b_slash = _{ "\\" }
+quote = _{ "\"" }
+percent = _{ "%" }
 
 l_brace = _{ "{" }
 r_brace = _{ "}" }
@@ -51,23 +56,27 @@ l_brack = _{ "[" }
 r_brack = _{ "]" }
 
 // Operator symbols
+// I need to use separate rules for symbols that can be either prefix or infix,
+// otherwise the pratt parser has a fit.
 
 at = { "@" }
+at_pre = { "@" }
+plus = { "+" }
+plus_pre = { "+" }
+dash = { "-" }
+dash_pre = { "-" }
 eq = { "=" }
 pipe = { "|" }
-dot = { "." }
+dot = _{ "." }
 hash = { "#" }
 qst = { "?" }
 star = { "*" }
 slash = { "/" }
-plus = { "+" }
-dash = { "-" }
 lodash = { "_" }
-quote = { "\"" }
 lt = { "<" }
 gt = { ">" }
-percent = { "%" }
 tilde = { "~" }
+bang = { "!" }
 
 bollocks = { ":=" }
 dbl_dot = { ".." }
@@ -85,50 +94,53 @@ arrow = { "=>" }
 
 // Operator groups
 
-unary_op        = _{ hash | dash | plus | at }
+nested_expression = { l_paren ~ expr ~ r_paren }
 
-tuple_start_op  = _{ at }
+infix_op          = _{ ident | nested_expression }
 
-expr_or_op      = _{ qst }
+prefix_op         = _{ dash_pre | plus_pre | at_pre | hash | bang | not }
 
-reduce_op       = _{ percent }
+tuple_start_op    = _{ at }
 
-exp_op          = _{ dbl_star }
+null_coal_op      = _{ dbl_qst }
 
-mult_op         = _{ star | slash | mod_ | div | inter }
+reduce_op         = { percent ~ (infix_op | bin_op) }
 
-add_op          = _{ plus | dash | with | less | union_ }
+exp_op            = _{ dbl_star }
 
-infix_id_func   = _{ ident }
-infix_expr_func = _{ l_paren ~ expr ~ r_paren }
-infix_op        = _{ dot ~ (infix_id_func | infix_expr_func) }
+mult_op           = _{ star | slash | mod_ | div | inter }
 
-set_op          = _{ in | notin | subset }
+add_op            = _{ plus | dash | with | less | union_ }
 
-compare_op      = _{ lt | lt_eq | gt | gt_eq | eq | bang_eq }
+infix_inject      = { dot ~ infix_op }
 
-not_op          = _{ not }
+set_op            = { in | notin | subset }
 
-and_op          = _{ and | dbl_amp }
+compare_op        = { lt | lt_eq | gt | gt_eq | eq | bang_eq }
 
-or_op           = _{ or | dbl_pipe }
+and_op            = { and | dbl_amp }
 
-impl_op         = _{ impl }
+or_op             = { or | dbl_pipe }
 
-iff_op          = _{ iff }
+impl_op           = { impl }
 
-select_op       = _{ exists | forall | choose }
+iff_op            = { iff }
 
-where_op        = _{ where }
+select_op         = { exists | forall | choose }
+
+where_op          = { where }
 
 bin_op = _{
-     exp_op
+   | tuple_start_op
+   | null_coal_op
+   | exp_op
    | mult_op
    | add_op
-   | and_op
-   | or_op
-   | impl_op
-   | infix_op
+   | reduce_op
+   | infix_inject
+   // | and_op
+   // | or_op
+   // | impl_op
 }
 
 // Literals
@@ -138,13 +150,11 @@ atom = ${
    colon ~ atom_keep
 }
 
-number_dash = { dash? }
-number_base = { ASCII_DIGIT+ }
-number_decimal = { (dot ~ ASCII_DIGIT+)? }
-number_exp = { ((^"e" | ^"f") ~ (plus | dash)? ~ ASCII_DIGIT+)? }
+number_base = @{ ASCII_DIGIT+ }
+number_decimal = @{ (dot ~ ASCII_DIGIT+)? }
+number_exp = @{ ((^"e" | ^"f") ~ (plus | dash)? ~ ASCII_DIGIT+)? }
 number = ${
-   number_dash
-   ~ number_base
+   number_base
    ~ number_decimal
    ~ number_exp
 }
@@ -161,7 +171,7 @@ ident = @{ (ASCII_ALPHA | lodash) ~ (ASCII_ALPHANUMERIC | lodash)* }
 // Expressions
 
 primary = _{
-     null // More ubiquitous than "OM"
+   | null // More ubiquitous than "OM"
    | newat
    | true_
    | false_
@@ -169,28 +179,11 @@ primary = _{
    | number
    | string
    | ident // Must follow primary keywords and function literal
-   | nested_expression // The absolute highest priority
+   | nested_expression
 }
 
-// This precencende climbing method is what I'm used to with PEG parsers
-// However, it appears to use a lot of memory due to a primary being wrapped
-// with layers and layers of other expressions. Maybe I need to use a Pratt
-// parser instead.
+empty_call = { "()" }
 
-nested_expression = _{ l_paren ~ expr ~ r_paren }
+bin_expr = { prefix_op* ~ primary ~ empty_call* ~ (bin_op ~ prefix_op* ~ primary ~ empty_call*)* }
 
-null_coal_expr = { primary ~ (dbl_qst ~ primary)* }
-
-tuple_start_expr = { null_coal_expr ~ (at ~ null_coal_expr)? }
-
-reduce_expr = { tuple_start_expr ~ (percent ~ bin_op ~ tuple_start_expr)? }
-
-exponent_expr = { reduce_expr ~ (exp_op ~ reduce_expr)* }
-
-mult_expr = { exponent_expr ~ (mult_op ~ exponent_expr)* }
-
-add_expr = { mult_expr ~ (add_op ~ mult_expr)* }
-
-expr = _{ add_expr }
-
-// expr_list = { expr ~ (comma ~ expr)* }
+expr = _{ bin_expr }
