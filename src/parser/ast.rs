@@ -1,7 +1,7 @@
 #[derive(Debug)]
-pub enum Op {
+pub enum BinOp {
     NullCoal,
-    At,
+    TupleStart,
     Exp,
     Mult,
     Inter,
@@ -26,7 +26,7 @@ pub enum ExprST<'a> {
     Ident(&'a str),
     Integer(i64),
     Float(f64),
-    Infix{op: Op, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
-    ReduceWithOp{op: Op, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
+    Infix{op: BinOp, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
+    ReduceWithOp{op: BinOp, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
     ReduceWithExpr{apply: Box<ExprST<'a>>, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
 }
