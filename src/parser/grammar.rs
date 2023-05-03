@@ -86,4 +86,35 @@ mod tests {
         parse_is_ok(Rule::expr, "a .foo b");
         parse_is_ok(Rule::expr, "a .(foo) b");
     }
+
+    #[test]
+    fn iterator() {
+        parse_is_ok(Rule::iterator, "x in Z");
+        parse_is_ok(Rule::iterator, "x=f(y)");
+        parse_is_ok(Rule::iterator, "[x,y]=f(z)");
+        parse_is_ok(Rule::iterator, "x=Z(y),a=C(b)");
+        parse_is_ok(Rule::iterator, "x in Z | not x");
+    }
+
+    #[test]
+    fn set_literal() {
+        parse_is_ok(Rule::set_literal, "{}");
+        parse_is_ok(Rule::set_literal, "{1}");
+        parse_is_ok(Rule::set_literal, "{1,2}");
+        parse_is_ok(Rule::set_literal, "{1..10}");
+        parse_is_ok(Rule::set_literal, "{1,3..10}");
+        parse_is_ok(Rule::set_literal, "{x+2 : x in Z}");
+        parse_is_ok(Rule::set_literal, "{[x,y] : x in Z, y=W(x)}");
+    }
+
+    #[test]
+    fn tuple_literal() {
+        parse_is_ok(Rule::tuple_literal, "[]");
+        parse_is_ok(Rule::tuple_literal, "[1]");
+        parse_is_ok(Rule::tuple_literal, "[1,2]");
+        parse_is_ok(Rule::tuple_literal, "[1..10]");
+        parse_is_ok(Rule::tuple_literal, "[1,3..10]");
+        parse_is_ok(Rule::tuple_literal, "[x+2 : x in Z]");
+        parse_is_ok(Rule::tuple_literal, "[[x,y] : x in Z, y=W(x)]");
+    }
 }

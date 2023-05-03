@@ -5,6 +5,7 @@ program = { "program" ~ atom ~ semicolon ~ expr ~ (semicolon ~ expr)* ~ semicolo
 program_missing_expr = { "program" ~ atom ~ semicolon? } // Example of parse-error-catcher
 
 WHITESPACE = _{ " " | "\t" | NEWLINE }
+__ = { WHITESPACE }
 COMMENT = _{ dbl_slash ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
 
 // Keywords
@@ -17,24 +18,24 @@ opt = { "opt" }
 value = { "value" }
 func = { "func" }
 
-mod_ = { "mod" }
-div = { "div" }
-inter = { "inter" }
-with = { "with" }
-less = { "less" }
-union_ = { "union" }
-in = { "in" }
-notin = { "notin" }
-subset = { "subset" }
-not = @{ "not" ~ WHITESPACE }
-and = { "and" }
-or = { "or" }
-impl = { "impl" }
-iff = { "iff" }
-exists = { "exists" }
-forall = { "forall" }
-choose = { "choose" }
-where = { "where" }
+mod_ = @{ "mod" ~ __ }
+div = @{ "div" ~ __ }
+inter = @{ "inter" ~ __ }
+with = @{ "with" ~ __ }
+less = @{ "less" ~ __ }
+union_ = @{ "union" ~ __ }
+in = @{ "in" ~ __ }
+notin = @{ "notin" ~ __ }
+subset = @{ "subset" ~ __ }
+not = @{ "not" ~ __ }
+and = @{ "and" ~ __ }
+or = @{ "or" ~ __ }
+impl = @{ "impl" ~ __ }
+iff = @{ "iff" ~ __ }
+exists = @{ "exists" ~ __ }
+forall = @{ "forall" ~ __ }
+choose = @{ "choose" ~ __ }
+where = @{ "where" ~ __ }
 
 // Non-operator Symbols
 // Some of these are technically operators, but it's better
@@ -47,6 +48,8 @@ comma = _{ "," }
 b_slash = _{ "\\" }
 quote = _{ "\"" }
 percent = _{ "%" }
+pipe = _{ "|" }
+dot = _{ "." }
 
 l_brace = _{ "{" }
 r_brace = _{ "}" }
@@ -70,8 +73,6 @@ plus_pre = { "+" }
 dash = { "-" }
 dash_pre = { "-" }
 eq = { "=" }
-pipe = { "|" }
-dot = _{ "." }
 hash = { "#" }
 qst = { "?" }
 star = { "*" }
@@ -82,6 +83,7 @@ gt = { ">" }
 tilde = { "~" }
 bang = { "!" }
 
+dbl_eq = { "==" }
 dbl_star = { "**" }
 dbl_qst = { "??" }
 dbl_amp = { "&&" }
@@ -115,21 +117,21 @@ add_op            = _{ plus | dash | with | less | union_ }
 
 infix_inject      = { dot ~ infix_op }
 
-set_op            = { in | notin | subset }
+set_op            = _{ in | notin | subset }
 
-compare_op        = { lt | lt_eq | gt | gt_eq | eq | bang_eq }
+compare_op        = _{ lt | lt_eq | gt | gt_eq | dbl_eq | bang_eq }
 
-and_op            = { and | dbl_amp }
+and_op            = _{ and | dbl_amp }
 
-or_op             = { or | dbl_pipe }
+or_op             = _{ or | dbl_pipe }
 
-impl_op           = { impl }
+impl_op           = _{ impl }
 
-iff_op            = { iff }
+iff_op            = _{ iff }
 
-select_op         = { exists | forall | choose }
+select_op         = _{ exists | forall | choose }
 
-where_op          = { where }
+where_op          = _{ where }
 
 bin_op = _{
    | tuple_start_op
@@ -169,6 +171,10 @@ string = ${ quote ~ string_inner ~ quote }
 
 ident = @{ (ASCII_ALPHA | lodash) ~ (ASCII_ALPHANUMERIC | lodash)* }
 
+tuple_literal = { l_brack ~ former? ~ r_brack }
+
+set_literal = { l_brace ~ former? ~ r_brace }
+
 // Expressions
 
 primary = _{
@@ -180,6 +186,8 @@ primary = _{
    | number
    | string
    | ident // Must follow primary keywords and function literal
+   | tuple_literal
+   | set_literal
    | nested_expression
 }
 
@@ -189,7 +197,7 @@ expr = _{ bin_expr }
 
 // Special sub-expressions
 
-expr_list = _{ expr ~ (comma ~ expr)* }
+expr_list = _{ expr ~ (comma ~ expr)* ~ comma? }
 
 range_start = { expr? }
 range_end = { expr? }
@@ -204,3 +212,55 @@ range_call = { l_paren ~ range ~ r_paren }
 pick_call = { l_brace ~ expr_list ~ r_brace }
 
 selector = _{ fn_call | range_call | pick_call }
+
+// Bound
+
+bound = _{
+   | tilde
+   | ident
+   | (l_brack ~ bound_list ~ r_brack)
+}
+
+/*
+eg:
+~
+foo
+[foo,bar,~,[baz,far]]
+*/
+
+bound_list = { bound ~ (comma ~ bound)* ~ comma? }
+
+// Iterator
+
+in_iterator = { bound_list ~ in ~ expr }
+
+select_iterator_single = { bound ~ eq ~ ident ~ l_paren ~ bound_list ~ r_paren }
+
+select_iterator_multi = { bound ~ eq ~ ident ~ l_brace ~ bound_list ~ r_brace }
+
+single_iterator = _{
+   | in_iterator
+   | select_iterator_single
+   | select_iterator_multi
+}
+
+iterator_list = { single_iterator ~ (comma ~ single_iterator)* ~ comma? }
+
+iterator = { iterator_list ~ (pipe ~ expr)? }
+
+// Formers
+
+iterator_former = { expr ~ colon ~ iterator }
+
+interval_range_former = { expr ~ comma ~ range }
+
+range_former = { range }
+
+literal_former = { expr_list }
+
+former = _{
+   | iterator_former
+   | interval_range_former
+   | range_former
+   | literal_former
+}
