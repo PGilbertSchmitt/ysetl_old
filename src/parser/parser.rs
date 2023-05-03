@@ -1,16 +1,13 @@
 use pest::Parser;
-use pest_derive::Parser;
 use pest::error::Error;
 use pest::iterators::{Pair};
 use pest::pratt_parser::PrattParser;
 use lazy_static;
 
+use super::grammar::YsetlParser;
+use super::grammar::Rule;
 use super::ast::{ExprST, PreOp};
 use super::ast::BinOp;
-
-#[derive(Parser)]
-#[grammar="parser/ysetl.pest"]
-struct YsetlParser;
 
 type ExprResult<'a> = Result<ExprST<'a>, String>;
 
