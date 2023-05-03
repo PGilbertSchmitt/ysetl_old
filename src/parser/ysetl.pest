@@ -39,7 +39,7 @@ where = { "where" }
 // Non-operator Symbols
 // Some of these are technically operators, but it's better
 // if they don't produce tokens because they're part of a
-// more complex operator, like `percent`
+// more complex operator, like `percent` or `bollocks`
 
 semicolon = _{ ";" }
 colon = _{ ":" }
@@ -54,6 +54,10 @@ l_paren = _{ "(" }
 r_paren = _{ ")" }
 l_brack = _{ "[" }
 r_brack = _{ "]" }
+
+bollocks = _{ ":=" }
+dbl_slash = _{ "//" }
+dbl_dot = _{ ".." }
 
 // Operator symbols
 // I need to use separate rules for symbols that can be either prefix or infix,
@@ -78,10 +82,7 @@ gt = { ">" }
 tilde = { "~" }
 bang = { "!" }
 
-bollocks = { ":=" }
-dbl_dot = { ".." }
 dbl_star = { "**" }
-dbl_slash = { "//" }
 dbl_qst = { "??" }
 dbl_amp = { "&&" }
 dbl_pipe = { "||" }
@@ -182,8 +183,24 @@ primary = _{
    | nested_expression
 }
 
-empty_call = { "()" }
-
-bin_expr = { prefix_op* ~ primary ~ empty_call* ~ (bin_op ~ prefix_op* ~ primary ~ empty_call*)* }
+bin_expr = { prefix_op* ~ primary ~ selector* ~ (bin_op ~ prefix_op* ~ primary ~ selector*)* }
 
 expr = _{ bin_expr }
+
+// Special sub-expressions
+
+expr_list = _{ expr ~ (comma ~ expr)* }
+
+range_start = { expr? }
+range_end = { expr? }
+range = _{ range_start ~ dbl_dot ~ range_end }
+
+// Selectors
+
+fn_call = { l_paren ~ expr_list? ~ r_paren }
+
+range_call = { l_paren ~ range ~ r_paren }
+
+pick_call = { l_brace ~ expr_list ~ r_brace }
+
+selector = _{ fn_call | range_call | pick_call }

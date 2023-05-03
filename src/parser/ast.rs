@@ -40,5 +40,7 @@ pub enum ExprST<'a> {
     ReduceWithExpr{apply: Box<ExprST<'a>>, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
     InfixInject{apply: Box<ExprST<'a>>, left: Box<ExprST<'a>>, right: Box<ExprST<'a>>},
     Prefix{op: PreOp, right: Box<ExprST<'a>>},
-    Call{left: Box<ExprST<'a>>}, // Needs info about selectors
+    Call{left: Box<ExprST<'a>>, args: Vec<ExprST<'a>>},
+    Range{left: Box<ExprST<'a>>, range_start: Option<Box<ExprST<'a>>>, range_end: Option<Box<ExprST<'a>>>},
+    Pick{left: Box<ExprST<'a>>, picks: Vec<ExprST<'a>>}
 }

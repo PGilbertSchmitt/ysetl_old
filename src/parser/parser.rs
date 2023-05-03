@@ -43,7 +43,10 @@ lazy_static::lazy_static! {
                 Op::prefix(Rule::hash) |
                 Op::prefix(Rule::bang)
             )
-            .op(Op::postfix(Rule::empty_call))
+            .op(Op::postfix(Rule::fn_call) |
+                Op::postfix(Rule::range_call) |
+                Op::postfix(Rule::pick_call)
+            )
     };
 }
 
@@ -201,6 +204,41 @@ fn map_primary_to_expr(primary: Pair<Rule>) -> ExprResult {
     }
 }
 
+fn unwrap_expr_list<'a>(list: Pair<'a, Rule>) -> Vec<ExprST> {
+    list.into_inner().map(|part| parse_expr(part).unwrap()).collect::<Vec<_>>()
+}
+
+fn to_call_expr<'a>(lhs: ExprResult<'a>, postfix: Pair<'a, Rule>) -> ExprResult<'a> {
+    Ok(ExprST::Call {
+        left: Box::new(lhs?),
+        args: unwrap_expr_list(postfix),
+    })
+}
+
+fn unwrap_range(range_part: Pair<Rule>) -> Option<Box<ExprST>> {
+    range_part.into_inner().next().map(|part| {
+        Box::new(parse_expr(part).unwrap())
+    })
+}
+
+fn to_range_expr<'a>(lhs: ExprResult<'a>, postfix: Pair<'a, Rule>) -> ExprResult<'a> {
+    let mut ranges = postfix.into_inner();
+    let range_start = unwrap_range(ranges.next().unwrap());
+    let range_end = unwrap_range(ranges.next().unwrap());
+    return Ok(ExprST::Range {
+        left: Box::new(lhs?),
+        range_start,
+        range_end,
+    })
+}
+
+fn to_pick_expr<'a>(lhs: ExprResult<'a>, postfix: Pair<'a, Rule>) -> ExprResult<'a> {
+    Ok(ExprST::Pick {
+        left: Box::new(lhs?),
+        picks: unwrap_expr_list(postfix),
+    })
+}
+
 fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
     PRATT_PARSER
         .map_primary(map_primary_to_expr)
@@ -217,7 +255,9 @@ fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
         })
         .map_postfix(|lhs, postfix| {
             match postfix.as_rule() {
-                Rule::empty_call => Ok(ExprST::Call { left: Box::new(lhs?) }),
+                Rule::fn_call => to_call_expr(lhs, postfix),
+                Rule::range_call => to_range_expr(lhs, postfix),
+                Rule::pick_call => to_pick_expr(lhs, postfix),
                 rule => unreachable!("parse_expr expected postfix expression, received {:?}", rule),
             }
         })
