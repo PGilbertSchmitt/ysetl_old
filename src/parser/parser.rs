@@ -1,13 +1,14 @@
 use pest::Parser;
 use pest::error::Error;
-use pest::iterators::{Pair};
+use pest::iterators::{Pair,Pairs};
 use pest::pratt_parser::PrattParser;
 use lazy_static;
 
 use super::grammar::YsetlParser;
 use super::grammar::Rule;
-use super::ast::{ExprST, PreOp};
+use super::ast::{ExprST, PreOp, Former, IteratorST, IteratorType, Bound};
 use super::ast::BinOp;
+// use super::debug::{pair_str,pairs_str};
 
 type ExprResult<'a> = Result<ExprST<'a>, String>;
 
@@ -186,6 +187,90 @@ fn to_infix_inject<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Ru
     })
 }
 
+fn parse_bound<'a>(bound: Pair<'a, Rule>) -> Bound<'a> {
+    match bound.as_rule() {
+        Rule::tilde => Bound::Tilde,
+        Rule::ident => Bound::Ident(bound.as_str()),
+        Rule::bound_list => Bound::List(bound.into_inner().map(parse_bound).collect()),
+        _ => unreachable!(),
+    }
+}
+
+fn parse_iterator_list_item<'a>(item: Pair<'a, Rule>) -> IteratorType<'a> {
+    let rule = item.as_rule();
+    let mut inner = item.into_inner();
+    if rule == Rule::in_iterator {
+        let list = inner.next().unwrap().into_inner().map(parse_bound).collect();
+        inner.next(); // Shed the unwanted "in" that's parsed (too lazy to make it silent...)
+        let expr = Box::new(parse_expr(inner.next().unwrap()).unwrap());
+        return IteratorType::In { list, expr }
+    }
+    let bound = parse_bound(inner.next().unwrap());
+    inner.next(); // Shed the unwanted "=" (wow, that's lazy)
+    let collection_ident = inner.next().unwrap().as_str();
+    let list = inner.next().unwrap().into_inner().map(parse_bound).collect();
+    match rule {
+        Rule::select_iterator_single => IteratorType::SelectSingle {
+            bound,
+            collection_ident,
+            list,
+        },
+        Rule::select_iterator_multi => IteratorType::SelectMulti {
+            bound,
+            collection_ident,
+            list,
+        },
+        _ => unreachable!(),
+    }
+}
+
+fn parse_iterator<'a>(mut iterator_parts: Pairs<'a, Rule>) -> IteratorST<'a> {
+    IteratorST {
+        iterators: iterator_parts.next().unwrap().into_inner().map(parse_iterator_list_item).collect(),
+        filter: iterator_parts.map(|expr| parse_expr(expr).unwrap()).collect(),
+    }
+}
+
+fn parse_former<'a>(mut former: Pairs<'a, Rule>) -> Former<'a> {
+    former.next().map_or_else(|| Former::Literal(vec![]), |former_type| {
+        let rule = former_type.as_rule();
+        let mut former_parts = former_type.into_inner();
+        match rule {
+            Rule::literal_former => {
+                Former::Literal(
+                    former_parts
+                        .map(|expr| parse_expr(expr).unwrap())
+                        .collect()
+                )
+            },
+            Rule::range_former => {
+                let range_start = unwrap_range(former_parts.next().unwrap())
+                    .expect(&format!("Range in collection former must be well defined"));
+                let range_end = unwrap_range(former_parts.next().unwrap())
+                    .expect(&format!("Range in collection former must be well defined"));
+                Former::Range { range_start, range_step: None, range_end }
+            },
+            Rule::interval_range_former => {
+                let range_start = Box::new(parse_expr(former_parts.next().unwrap()).unwrap());
+                let range_step = Some(unwrap_range(former_parts.next().unwrap())
+                    .expect(&format!("Range in collection former must be well defined")));
+                let range_end = unwrap_range(former_parts.next().unwrap())
+                    .expect(&format!("Range in collection former must be well defined"));
+                Former::Range { range_start, range_step, range_end }
+            },
+            Rule::iterator_former => {
+                let output = Box::new(parse_expr(former_parts.next().unwrap()).unwrap());
+                let iterator = parse_iterator(former_parts.next().unwrap().into_inner());
+                Former::Iterator {
+                    iterator,
+                    output,
+                }
+            },
+            _ => unreachable!(),
+        }
+    })
+}
+
 fn map_primary_to_expr(primary: Pair<Rule>) -> ExprResult {
     match primary.as_rule() {
         Rule::null => Ok(ExprST::Null),
@@ -196,6 +281,8 @@ fn map_primary_to_expr(primary: Pair<Rule>) -> ExprResult {
         Rule::string => Ok(ExprST::String(string_value(primary))),
         Rule::ident => Ok(ExprST::Ident(primary.as_str())),
         Rule::number => Ok(number_value(primary)),
+        Rule::tuple_literal => Ok(ExprST::TupleLiteral(parse_former(primary.into_inner()))),
+        Rule::set_literal => Ok(ExprST::SetLiteral(parse_former(primary.into_inner()))),
         Rule::nested_expression => parse_expr(primary.into_inner().next().unwrap()),
         rule => unreachable!("parse_expr expected primary, received {:?}", rule),
     }

@@ -115,6 +115,6 @@ mod tests {
         parse_is_ok(Rule::tuple_literal, "[1..10]");
         parse_is_ok(Rule::tuple_literal, "[1,3..10]");
         parse_is_ok(Rule::tuple_literal, "[x+2 : x in Z]");
-        parse_is_ok(Rule::tuple_literal, "[[x,y] : x in Z, y=W(x)]");
+        parse_is_ok(Rule::tuple_literal, "[[x,y] : x in Z, y=W(x) | not x]");
     }
 }

@@ -197,7 +197,7 @@ expr = _{ bin_expr }
 
 // Special sub-expressions
 
-expr_list = _{ expr ~ (comma ~ expr)* ~ comma? }
+expr_list = _{ expr ~ (comma ~ expr)* }
 
 range_start = { expr? }
 range_end = { expr? }
@@ -228,7 +228,7 @@ foo
 [foo,bar,~,[baz,far]]
 */
 
-bound_list = { bound ~ (comma ~ bound)* ~ comma? }
+bound_list = { bound ~ (comma ~ bound)* }
 
 // Iterator
 
@@ -244,9 +244,9 @@ single_iterator = _{
    | select_iterator_multi
 }
 
-iterator_list = { single_iterator ~ (comma ~ single_iterator)* ~ comma? }
+iterator_list = { single_iterator ~ (comma ~ single_iterator)* }
 
-iterator = { iterator_list ~ (pipe ~ expr)? }
+iterator = { iterator_list ~ (pipe ~ expr_list)? }
 
 // Formers
 
@@ -260,7 +260,7 @@ literal_former = { expr_list }
 
 former = _{
    | iterator_former
-   | interval_range_former
+   | interval_range_former // Must come before the literal former
    | range_former
    | literal_former
 }
