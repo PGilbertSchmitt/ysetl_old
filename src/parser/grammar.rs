@@ -120,14 +120,14 @@ mod tests {
 
     #[test]
     fn functions() {
-        parse_is_ok(Rule::func_literal, "() => 5");
-        parse_is_ok(Rule::func_literal, "(a) => a + 5");
-        parse_is_ok(Rule::func_literal, "(a,b?) => a + (b ?? 5)");
-        parse_is_ok(Rule::func_literal, "(a,b?,c!) => a + (b ?? c)");
+        parse_is_ok(Rule::short_func, "() => 5");
+        parse_is_ok(Rule::short_func, "(a) => a + 5");
+        parse_is_ok(Rule::short_func, "(a,b?) => a + (b ?? 5)");
+        parse_is_ok(Rule::short_func, "(a,b?,c!) => a + (b ?? c)");
 
-        parse_is_ok(Rule::func_literal, "func () { 5 }");
-        parse_is_ok(Rule::func_literal, "func (a) { a + 5; a - 5 }");
-        parse_is_ok(Rule::func_literal, "func (a) { a + 5; a - 5; }");
-        parse_is_ok(Rule::func_literal, "func (a,b?,c!) { foo(a); a + (b ?? c) }");
+        parse_is_ok(Rule::long_func, "func () { 5 }");
+        parse_is_ok(Rule::long_func, "func (a) { a + 5; a - 5 }");
+        parse_is_ok(Rule::long_func, "func (a) { a + 5; a - 5; }");
+        parse_is_ok(Rule::long_func, "func (a,b?,c!) { foo(a); a + (b ?? c) }");
     }
 }

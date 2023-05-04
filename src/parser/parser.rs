@@ -8,7 +8,7 @@ use super::grammar::YsetlParser;
 use super::grammar::Rule;
 use super::ast::{ExprST, PreOp, Former, IteratorST, IteratorType, Bound};
 use super::ast::BinOp;
-// use super::debug::{pair_str,pairs_str};
+use super::debug::{pair_str};
 
 type ExprResult<'a> = Result<ExprST<'a>, String>;
 
@@ -94,8 +94,9 @@ fn number_value(number_pair: Pair<Rule>) -> ExprST {
 }
 
 /* 
- * This seems a little silly, but YSETL's float literals are ALMOST the same as rusts,
+ * This seems a little silly, but YSETL's float literals are ALMOST the same as Rust's,
  * with the only exception being that the exponent marker can be 'e', 'E', 'f', or 'F'.
+ * There is no semantic difference between these markers, it's up to personal preference.
  */
 fn construct_number(
     base: &str,
@@ -123,9 +124,69 @@ fn construct_number(
     }
 }
 
+fn pull_param_type<'a>(rule: Rule, params: &mut Pairs<'a, Rule>) -> Vec<&'a str> {
+    let mut output_vec = Vec::new();
+    while let Some(param_str) = params.peek().and_then(|param_type| {
+            if param_type.as_rule() == rule {
+                Some(params.next().unwrap().into_inner().next().unwrap().as_str())
+            } else {
+                None
+            }
+    }) {
+        output_vec.push(param_str)
+    }
+    output_vec
+}
+
+struct ParamLists<'a>(Vec<&'a str>,Vec<&'a str>,Vec<&'a str>);
+
+fn parse_param_list<'a>(param_list: Pair<'a, Rule>) -> Result<ParamLists, String> {
+    let mut params = param_list.into_inner();
+    
+    let req_params = pull_param_type(Rule::req_param, &mut params);
+    let opt_params = pull_param_type(Rule::opt_param, &mut params);
+    let locked_params = pull_param_type(Rule::locked_param, &mut params);
+
+    if let Some(param) = params.next() {
+        Err(format!("Unexpected param {}, params must be ordered correctly", param.as_str()))
+    } else {
+        Ok(ParamLists(req_params, opt_params, locked_params))
+    }
+}
+
+fn parse_func<'a>(func_pair: Pair<'a, Rule>) -> ExprResult<'a> {
+    let mut parts = func_pair.into_inner();
+    let ParamLists(
+        req_params,
+        opt_params,
+        locked_params
+    ) = parse_param_list(parts.next().unwrap())?;
+
+    let mut body = Vec::new();
+    while let Some(expr) = parts.peek().and_then(|part_type| {
+        if part_type.as_rule() != Rule::captured_semicolon {
+            parts.next()
+        } else {
+            None
+        }
+    }) {
+        body.push(parse_expr(expr)?)
+    }
+
+    let null_return = parts.next().is_some();
+
+    Ok(ExprST::Function {
+        req_params,
+        opt_params,
+        locked_params,
+        body,
+        null_return,
+    })
+}
+
 #[allow(dead_code)]
 fn inspect(input: Pair<Rule>) -> ExprResult {
-    println!("{:?}", input);
+    println!("{}", pair_str(input));
     Ok(ExprST::Null)
 }
 
@@ -283,6 +344,8 @@ fn map_primary_to_expr(primary: Pair<Rule>) -> ExprResult {
         Rule::number => Ok(number_value(primary)),
         Rule::tuple_literal => Ok(ExprST::TupleLiteral(parse_former(primary.into_inner()))),
         Rule::set_literal => Ok(ExprST::SetLiteral(parse_former(primary.into_inner()))),
+        Rule::short_func => parse_func(primary),
+        Rule::long_func => parse_func(primary),
         Rule::nested_expression => parse_expr(primary.into_inner().next().unwrap()),
         rule => unreachable!("parse_expr expected primary, received {:?}", rule),
     }
@@ -349,7 +412,7 @@ fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
             let op_rule = op.as_rule();
             match op_rule {
                 // Normal Rules
-                  Rule::plus
+                | Rule::plus
                 | Rule::dash
                 | Rule::with
                 | Rule::less

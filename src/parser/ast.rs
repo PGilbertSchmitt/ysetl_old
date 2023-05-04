@@ -84,6 +84,13 @@ pub enum ExprST<'a> {
     Float(f64),
     TupleLiteral(Former<'a>),
     SetLiteral(Former<'a>),
+    Function{
+        req_params: Vec<&'a str>,
+        opt_params: Vec<&'a str>,
+        locked_params: Vec<&'a str>,
+        body: Vec<ExprST<'a>>,
+        null_return: bool,
+    },
     Infix{
         op: BinOp,
         left: Box<ExprST<'a>>,

@@ -183,9 +183,11 @@ primary = _{
    | atom
    | number
    | string
-   | ident // Must follow primary keywords and function literal
    | tuple_literal
    | set_literal
+   | short_func
+   | long_func
+   | ident // Must follow primary keywords and function literal
    | nested_expression
 }
 
@@ -311,14 +313,9 @@ param = _{
    | req_param // Must be last
 }
 
-param_list = _{
-   | l_paren ~ r_paren
-   | l_paren ~ param ~ (comma ~ param)* ~ r_paren
-}
+param_list = { l_paren ~ (param ~ (comma ~ param)*)? ~ r_paren }
 
 short_func = { param_list ~ arrow ~ expr }
 
 captured_semicolon = @{ semicolon }
 long_func = { func ~ param_list ~ l_brace ~ expr_block ~ captured_semicolon? ~ r_brace }
-
-func_literal = _{ long_func | short_func }
