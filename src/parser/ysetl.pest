@@ -1,7 +1,7 @@
 program_input = _{ SOI ~ (program | program_missing_expr) ~ EOI }
 repl_input = _{ SOI ~ expr ~ EOI }
 
-program = { "program" ~ atom ~ semicolon ~ expr ~ (semicolon ~ expr)* ~ semicolon?}
+program = { "program" ~ atom ~ semicolon ~ expr_block ~ semicolon?}
 program_missing_expr = { "program" ~ atom ~ semicolon? } // Example of parse-error-catcher
 
 WHITESPACE = _{ " " | "\t" | NEWLINE }
@@ -14,9 +14,7 @@ null = { "null" }
 true_ = { "true" }
 false_ = { "false" }
 newat = { "newat" }
-opt = { "opt" }
-value = { "value" }
-func = { "func" }
+func = _{ "func" }
 
 mod_ = @{ "mod" ~ __ }
 div = @{ "div" ~ __ }
@@ -50,6 +48,7 @@ quote = _{ "\"" }
 percent = _{ "%" }
 pipe = _{ "|" }
 dot = _{ "." }
+qst = _{ "?" }
 
 l_brace = _{ "{" }
 r_brace = _{ "}" }
@@ -61,6 +60,7 @@ r_brack = _{ "]" }
 bollocks = _{ ":=" }
 dbl_slash = _{ "//" }
 dbl_dot = _{ ".." }
+arrow = _{ "=>" }
 
 // Operator symbols
 // I need to use separate rules for symbols that can be either prefix or infix,
@@ -74,7 +74,6 @@ dash = { "-" }
 dash_pre = { "-" }
 eq = { "=" }
 hash = { "#" }
-qst = { "?" }
 star = { "*" }
 slash = { "/" }
 lodash = { "_" }
@@ -93,7 +92,6 @@ dbl_gt = { ">>" }
 bang_eq = { "!=" }
 lt_eq = { "<=" }
 gt_eq = { ">=" }
-arrow = { "=>" }
 
 // Operator groups
 
@@ -195,6 +193,8 @@ bin_expr = { prefix_op* ~ primary ~ selector* ~ (bin_op ~ prefix_op* ~ primary ~
 
 expr = _{ bin_expr }
 
+expr_block = _{ expr ~ (semicolon ~ expr)* }
+
 // Special sub-expressions
 
 expr_list = _{ expr ~ (comma ~ expr)* }
@@ -264,3 +264,61 @@ former = _{
    | range_former
    | literal_former
 }
+
+// Function literals
+
+// In the original ISETL 3.0:
+// When you reference external variables in a function body, they normally keep their
+// reference, so their value in the function is equal to the external variable's value
+// when the function is called. By using the `value` list in a function definition, the
+// value of the externally referenced variable is locked to what it is at the time the
+// function is defined. The default behavior is what I'm used to with closures, at least
+// with mutable variables in JS. The behavior with the `value` list isn't replicable
+// directly in JS as far as I know, but I like it. I wonder if I'll find a use for it.
+// However, I will not use a `value` keyword for it since I don't want to prevent the use
+// of a `value` ident in the function body (it's probably pretty common), so I'll replace
+// the value statement with special param syntax. I'll leave this segment of grammar here.
+
+// values = { value_op ~ ident ~ (comma ~ ident)* ~ semicolon }
+
+// In the original ISETL 3.0:
+// When variables are instantiated in a function, they have lexical scope with retention.
+// This means they will keep their value in the global namespace even after the function
+// ends, unless you add them to the `local` list. Personally, I don't really like this.
+// It's the type of side effect that makes it easy to shoot yourself in the foot. I'm
+// going to omit this language feature. All variables instantiated inside a function body
+// will have no retention as if they were added to the `local` list, and if you want them
+// to persist, they will need to be returned from the function. I will leave this segment
+// of grammar here in a comment to explain why it's omitted from my derivative language.
+
+// locals = { "local" ~ ident_list? }
+
+// Big surprise, the JavaScript developer wants different function syntax than what good
+// ole' Gary M. Levin came up with. I'm sorry, I can't help myself. I just see the `end`
+// keyword and it gives me fits, so sue me. Also, I want to introduce atom literals, so
+// using colons to prepend the function shorthand wouldn't have worked. I mean, I don't
+// think it would have been ambigious for the parser if I did it right, but it would look
+// a little unclear to this developer, and we can't have that, can we?
+
+req_param = ${ ident }
+opt_param = ${ ident ~ qst }
+locked_param = ${ ident ~ "!" }
+
+// The actual ordering can be handled by the parser
+param = _{ 
+   | opt_param
+   | locked_param
+   | req_param // Must be last
+}
+
+param_list = _{
+   | l_paren ~ r_paren
+   | l_paren ~ param ~ (comma ~ param)* ~ r_paren
+}
+
+short_func = { param_list ~ arrow ~ expr }
+
+captured_semicolon = @{ semicolon }
+long_func = { func ~ param_list ~ l_brace ~ expr_block ~ captured_semicolon? ~ r_brace }
+
+func_literal = _{ long_func | short_func }

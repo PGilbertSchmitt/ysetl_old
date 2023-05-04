@@ -117,4 +117,17 @@ mod tests {
         parse_is_ok(Rule::tuple_literal, "[x+2 : x in Z]");
         parse_is_ok(Rule::tuple_literal, "[[x,y] : x in Z, y=W(x) | not x]");
     }
+
+    #[test]
+    fn functions() {
+        parse_is_ok(Rule::func_literal, "() => 5");
+        parse_is_ok(Rule::func_literal, "(a) => a + 5");
+        parse_is_ok(Rule::func_literal, "(a,b?) => a + (b ?? 5)");
+        parse_is_ok(Rule::func_literal, "(a,b?,c!) => a + (b ?? c)");
+
+        parse_is_ok(Rule::func_literal, "func () { 5 }");
+        parse_is_ok(Rule::func_literal, "func (a) { a + 5; a - 5 }");
+        parse_is_ok(Rule::func_literal, "func (a) { a + 5; a - 5; }");
+        parse_is_ok(Rule::func_literal, "func (a,b?,c!) { foo(a); a + (b ?? c) }");
+    }
 }
