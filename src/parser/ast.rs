@@ -13,6 +13,19 @@ pub enum BinOp {
     With,
     Less,
     Union,
+    In,
+    Notin,
+    Subset,
+    LT,
+    LTEQ,
+    GT,
+    GTEQ,
+    EQ,
+    NEQ,
+    And,
+    Or,
+    Impl,
+    Iff,
 }
 
 #[derive(Debug)]

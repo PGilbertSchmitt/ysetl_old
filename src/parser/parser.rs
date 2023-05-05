@@ -18,19 +18,32 @@ lazy_static::lazy_static! {
         
         PrattParser::new()
             .op(Op::prefix(Rule::not)) // Same as Rule::bang, but with much lower precedence
+            .op(Op::infix(Rule::iff, Assoc::Left))
+            .op(Op::infix(Rule::impl_, Assoc::Left))
+            .op(Op::infix(Rule::or, Assoc::Left) |
+                Op::infix(Rule::dbl_pipe, Assoc::Left))
+            .op(Op::infix(Rule::and, Assoc::Left) |
+                Op::infix(Rule::dbl_amp, Assoc::Left))
+            .op(Op::infix(Rule::lt, Assoc::Left) |
+                Op::infix(Rule::lt_eq, Assoc::Left) |
+                Op::infix(Rule::gt, Assoc::Left) |
+                Op::infix(Rule::gt_eq, Assoc::Left) |
+                Op::infix(Rule::dbl_eq, Assoc::Left) |
+                Op::infix(Rule::bang_eq, Assoc::Left))
+            .op(Op::infix(Rule::in_, Assoc::Left) |
+                Op::infix(Rule::notin, Assoc::Left) |
+                Op::infix(Rule::subset, Assoc::Left))
             .op(Op::infix(Rule::infix_inject, Assoc::Left))
             .op(Op::infix(Rule::plus, Assoc::Left) |
                 Op::infix(Rule::dash, Assoc::Left) |
                 Op::infix(Rule::with, Assoc::Left) |
                 Op::infix(Rule::less, Assoc::Left) |
-                Op::infix(Rule::union_, Assoc::Left)
-            )
+                Op::infix(Rule::union_, Assoc::Left))
             .op(Op::infix(Rule::star, Assoc::Left) |
                 Op::infix(Rule::slash, Assoc::Left) |
                 Op::infix(Rule::mod_, Assoc::Left) |
                 Op::infix(Rule::div, Assoc::Left) |
-                Op::infix(Rule::inter, Assoc::Left)
-            )
+                Op::infix(Rule::inter, Assoc::Left))
             .op(Op::infix(Rule::dbl_star, Assoc::Right))
             .op(Op::infix(Rule::reduce_op, Assoc::Right))
             .op(Op::infix(Rule::dbl_qst, Assoc::Right))
@@ -39,12 +52,10 @@ lazy_static::lazy_static! {
                 Op::prefix(Rule::plus_pre) |
                 Op::prefix(Rule::at_pre) |
                 Op::prefix(Rule::hash) |
-                Op::prefix(Rule::bang)
-            )
+                Op::prefix(Rule::bang))
             .op(Op::postfix(Rule::fn_call) |
                 Op::postfix(Rule::range_call) |
-                Op::postfix(Rule::pick_call)
-            )
+                Op::postfix(Rule::pick_call))
     };
 }
 
@@ -190,38 +201,59 @@ fn inspect(input: Pair<Rule>) -> ExprResult {
     Ok(ExprST::Null)
 }
 
-fn to_binop(rule: Rule) -> BinOp {
+fn to_binop(rule: Rule) -> Option<BinOp> {
     match rule {
-        Rule::plus => BinOp::Add,
-        Rule::dash => BinOp::Subtract,
-        Rule::with => BinOp::With,
-        Rule::less => BinOp::Less,
-        Rule::union_ => BinOp::Union,
-        Rule::star => BinOp::Mult,
-        Rule::slash => BinOp::Div,
-        Rule::mod_ => BinOp::Mod,
-        Rule::div => BinOp::IntDiv,
-        Rule::inter => BinOp::Inter,
-        Rule::dbl_star => BinOp::Exp,
-        Rule::dbl_qst => BinOp::NullCoal,
-        Rule::at => BinOp::TupleStart, 
-        _ => unreachable!("Expected pure binary operator, received {:?}", rule),
+        Rule::plus => Some(BinOp::Add),
+        Rule::dash => Some(BinOp::Subtract),
+        Rule::with => Some(BinOp::With),
+        Rule::less => Some(BinOp::Less),
+        Rule::union_ => Some(BinOp::Union),
+        Rule::star => Some(BinOp::Mult),
+        Rule::slash => Some(BinOp::Div),
+        Rule::mod_ => Some(BinOp::Mod),
+        Rule::div => Some(BinOp::IntDiv),
+        Rule::inter => Some(BinOp::Inter),
+        Rule::dbl_star => Some(BinOp::Exp),
+        Rule::dbl_qst => Some(BinOp::NullCoal),
+        Rule::at => Some(BinOp::TupleStart),
+        Rule::in_ => Some(BinOp::In),
+        Rule::notin => Some(BinOp::Notin),
+        Rule::subset => Some(BinOp::Subset),
+        Rule::lt => Some(BinOp::LT),
+        Rule::lt_eq => Some(BinOp::LTEQ),
+        Rule::gt => Some(BinOp::GT),
+        Rule::gt_eq => Some(BinOp::GTEQ),
+        Rule::dbl_eq => Some(BinOp::EQ),
+        Rule::bang_eq => Some(BinOp::NEQ),
+        Rule::and | Rule::dbl_amp => Some(BinOp::And),
+        Rule::or | Rule::dbl_pipe => Some(BinOp::Or),
+        Rule::impl_ => Some(BinOp::Impl),
+        Rule::iff => Some(BinOp::Iff),
+        _ => None,
+        // unreachable!("parse_expr expected infix expression, received {:?}", rule)
     }
 }
 
-fn to_infix<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: BinOp) -> ExprResult<'a> {
-    Ok(ExprST::Infix {
-        op: op,
-        left: Box::new(lhs?),
-        right: Box::new(rhs?),
-    })
+fn parse_infix<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op_rule: Rule) -> ExprResult<'a> {
+    to_binop(op_rule).map_or_else(
+        || {
+            Err(format!("parse_expr expected infix operator, received {:?}", op_rule))
+        },
+        |op| {
+            Ok(ExprST::Infix {
+                op: op,
+                left: Box::new(lhs?),
+                right: Box::new(rhs?),
+            })
+        }
+    )
 }
 
 fn to_prefix<'a>(rhs: ExprResult<'a>, op: PreOp) -> ExprResult<'a> {
     Ok(ExprST::Prefix { op, right: Box::new(rhs?) })
 }
 
-fn to_reduce_expr<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Rule>) -> ExprResult<'a> {
+fn parse_reduce_expr<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Rule>) -> ExprResult<'a> {
     let inner_op = op.into_inner().next().unwrap();
     let left = Box::new(lhs?);
     let right = Box::new(rhs?);
@@ -231,11 +263,17 @@ fn to_reduce_expr<'a>(lhs: ExprResult<'a>, rhs: ExprResult<'a>, op: Pair<'a, Rul
             left,
             right,
         }),
-        bin_op => Ok(ExprST::ReduceWithOp {
-            op: to_binop(bin_op),
-            left,
-            right,
-        })
+        bin_op => {
+            to_binop(bin_op).map_or_else(
+                || Err(format!("parse_reduce_expr expected infix operator, received {:?}", bin_op)),
+                |op|
+                    Ok(ExprST::ReduceWithOp {
+                        op,
+                        left,
+                        right,
+                    })
+            )
+        }
     }
 }
 
@@ -411,25 +449,12 @@ fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
         .map_infix(|lhs, op, rhs| {
             let op_rule = op.as_rule();
             match op_rule {
-                // Normal Rules
-                | Rule::plus
-                | Rule::dash
-                | Rule::with
-                | Rule::less
-                | Rule::union_
-                | Rule::star
-                | Rule::slash
-                | Rule::mod_
-                | Rule::div
-                | Rule::inter
-                | Rule::dbl_star
-                | Rule::dbl_qst
-                | Rule::at => to_infix(lhs, rhs, to_binop(op_rule)),
-
                 // Special operator infix
-                Rule::reduce_op => to_reduce_expr(lhs, rhs, op),
+                Rule::reduce_op => parse_reduce_expr(lhs, rhs, op),
                 Rule::infix_inject => to_infix_inject(lhs, rhs, op),
-                rule => unreachable!("parse_expr expected infix expression, received {:?}", rule),
+
+                // Normal Rules
+                rule => parse_infix(lhs, rhs, rule),
             }
         })
         .parse(input.into_inner())

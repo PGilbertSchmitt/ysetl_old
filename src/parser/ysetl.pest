@@ -22,13 +22,13 @@ inter = @{ "inter" ~ __ }
 with = @{ "with" ~ __ }
 less = @{ "less" ~ __ }
 union_ = @{ "union" ~ __ }
-in = @{ "in" ~ __ }
+in_ = @{ "in" ~ __ }
 notin = @{ "notin" ~ __ }
 subset = @{ "subset" ~ __ }
 not = @{ "not" ~ __ }
 and = @{ "and" ~ __ }
 or = @{ "or" ~ __ }
-impl = @{ "impl" ~ __ }
+impl_ = @{ "impl" ~ __ }
 iff = @{ "iff" ~ __ }
 exists = @{ "exists" ~ __ }
 forall = @{ "forall" ~ __ }
@@ -115,7 +115,7 @@ add_op            = _{ plus | dash | with | less | union_ }
 
 infix_inject      = { dot ~ infix_op }
 
-set_op            = _{ in | notin | subset }
+set_op            = _{ in_ | notin | subset }
 
 compare_op        = _{ lt | lt_eq | gt | gt_eq | dbl_eq | bang_eq }
 
@@ -123,7 +123,7 @@ and_op            = _{ and | dbl_amp }
 
 or_op             = _{ or | dbl_pipe }
 
-impl_op           = _{ impl }
+impl_op           = _{ impl_ }
 
 iff_op            = _{ iff }
 
@@ -139,9 +139,12 @@ bin_op = _{
    | add_op
    | reduce_op
    | infix_inject
-   // | and_op
-   // | or_op
-   // | impl_op
+   | set_op
+   | compare_op
+   | and_op
+   | or_op
+   | impl_op
+   | iff_op
 }
 
 // Literals
@@ -234,7 +237,7 @@ bound_list = { bound ~ (comma ~ bound)* }
 
 // Iterator
 
-in_iterator = { bound_list ~ in ~ expr }
+in_iterator = { bound_list ~ in_ ~ expr }
 
 select_iterator_single = { bound ~ eq ~ ident ~ l_paren ~ bound_list ~ r_paren }
 
