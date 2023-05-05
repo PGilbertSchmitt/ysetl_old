@@ -1,5 +1,5 @@
-use pest::iterators::{Pair,Pairs};
 use super::grammar::Rule;
+use pest::iterators::{Pair, Pairs};
 
 pub fn pair_str(rule: Pair<Rule>) -> String {
     format!(
@@ -15,5 +15,5 @@ pub fn pairs_str(inner: Pairs<Rule>) -> String {
         .map(|pair| pair_str(pair))
         .collect::<Vec<_>>()
         .join(", ");
-    format!("[{joined_str}]", )
+    format!("[{joined_str}]",)
 }

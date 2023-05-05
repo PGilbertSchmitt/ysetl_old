@@ -1,19 +1,19 @@
 use pest_derive::Parser;
 
 #[derive(Parser)]
-#[grammar="parser/ysetl.pest"]
+#[grammar = "parser/ysetl.pest"]
 pub struct YsetlParser;
 
 #[cfg(test)]
 mod tests {
-    use pest::Parser;
     use super::Rule;
     use super::YsetlParser;
+    use pest::Parser;
 
     fn parse_is_ok(rule: Rule, input: &str) {
         match YsetlParser::parse(rule, input) {
             Ok(_) => assert!(true),
-            Err(err) => assert!(false, "{:?}", err)
+            Err(err) => assert!(false, "{:?}", err),
         }
     }
 
@@ -50,7 +50,7 @@ mod tests {
         parse_is_ok(Rule::expr, "!foo");
         parse_is_ok(Rule::expr, "not foo");
     }
-    
+
     #[test]
     fn postfix_expression() {
         parse_is_ok(Rule::expr, "foo()");

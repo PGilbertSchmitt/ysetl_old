@@ -41,27 +41,27 @@ pub enum PreOp {
 pub enum Bound<'a> {
     Tilde,
     Ident(&'a str),
-    List(BoundList<'a>)
+    List(BoundList<'a>),
 }
 
 type BoundList<'a> = Vec<Bound<'a>>;
 
 #[derive(Debug)]
 pub enum IteratorType<'a> {
-    In{
+    In {
         list: BoundList<'a>,
         expr: Box<ExprST<'a>>,
     },
-    SelectSingle{
+    SelectSingle {
         bound: Bound<'a>,
         collection_ident: &'a str,
         list: BoundList<'a>,
     },
-    SelectMulti{
+    SelectMulti {
         bound: Bound<'a>,
         collection_ident: &'a str,
         list: BoundList<'a>,
-    }
+    },
 }
 
 #[derive(Debug)]
@@ -73,15 +73,15 @@ pub struct IteratorST<'a> {
 #[derive(Debug)]
 pub enum Former<'a> {
     Literal(Vec<ExprST<'a>>),
-    Range{ 
-        range_start: Box<ExprST<'a>>, 
+    Range {
+        range_start: Box<ExprST<'a>>,
         range_step: Option<Box<ExprST<'a>>>,
         range_end: Box<ExprST<'a>>,
     },
-    Iterator{
+    Iterator {
         iterator: IteratorST<'a>,
         output: Box<ExprST<'a>>,
-    }
+    },
 }
 
 #[derive(Debug)]
@@ -97,48 +97,48 @@ pub enum ExprST<'a> {
     Float(f64),
     TupleLiteral(Former<'a>),
     SetLiteral(Former<'a>),
-    Function{
+    Function {
         req_params: Vec<&'a str>,
         opt_params: Vec<&'a str>,
         locked_params: Vec<&'a str>,
         body: Vec<ExprST<'a>>,
         null_return: bool,
     },
-    Infix{
+    Infix {
         op: BinOp,
         left: Box<ExprST<'a>>,
-        right: Box<ExprST<'a>>
+        right: Box<ExprST<'a>>,
     },
-    ReduceWithOp{
+    ReduceWithOp {
         op: BinOp,
         left: Box<ExprST<'a>>,
-        right: Box<ExprST<'a>>
+        right: Box<ExprST<'a>>,
     },
-    ReduceWithExpr{
+    ReduceWithExpr {
         apply: Box<ExprST<'a>>,
         left: Box<ExprST<'a>>,
-        right: Box<ExprST<'a>>
+        right: Box<ExprST<'a>>,
     },
-    InfixInject{
+    InfixInject {
         apply: Box<ExprST<'a>>,
         left: Box<ExprST<'a>>,
-        right: Box<ExprST<'a>>
+        right: Box<ExprST<'a>>,
     },
-    Prefix{
+    Prefix {
         op: PreOp,
-        right: Box<ExprST<'a>>
+        right: Box<ExprST<'a>>,
     },
-    Call{
+    Call {
         left: Box<ExprST<'a>>,
-        args: Vec<ExprST<'a>>
+        args: Vec<ExprST<'a>>,
     },
-    Range{
+    Range {
         left: Box<ExprST<'a>>,
         range_start: Option<Box<ExprST<'a>>>,
-        range_end: Option<Box<ExprST<'a>>>
+        range_end: Option<Box<ExprST<'a>>>,
     },
-    Pick{
+    Pick {
         left: Box<ExprST<'a>>,
-        picks: Vec<ExprST<'a>>
-    }
+        picks: Vec<ExprST<'a>>,
+    },
 }
