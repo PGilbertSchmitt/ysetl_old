@@ -30,3 +30,7 @@ aaaa %foo bbbb %bar cccc;
 1 * 2 + 3 * 4;
 
 -not !#@lotta_unaries;
+
+foo(1,a){a+c}(1..);
+
+a := b(d) := c;

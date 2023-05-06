@@ -4,8 +4,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::PrattParser;
 use pest::Parser;
 
-use super::ast::BinOp;
-use super::ast::{Bound, ExprST, Former, IteratorST, IteratorType, PreOp};
+use super::ast::{BinOp, Bound, ExprST, Former, IteratorST, IteratorType, PreOp, Selector, LHS};
 use super::debug::pair_str;
 use super::grammar::Rule;
 use super::grammar::YsetlParser;
@@ -226,7 +225,6 @@ fn to_binop(rule: Rule) -> Option<BinOp> {
         Rule::impl_ => Some(BinOp::Impl),
         Rule::iff => Some(BinOp::Iff),
         _ => None,
-        // unreachable!("parse_expr expected infix expression, received {:?}", rule)
     }
 }
 
@@ -426,11 +424,8 @@ fn unwrap_expr_list<'a>(list: Pair<'a, Rule>) -> Vec<ExprST> {
         .collect::<Vec<_>>()
 }
 
-fn to_call_expr<'a>(lhs: ExprResult<'a>, postfix: Pair<'a, Rule>) -> ExprResult<'a> {
-    Ok(ExprST::Call {
-        left: Box::new(lhs?),
-        args: unwrap_expr_list(postfix),
-    })
+fn parse_call_expr<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
+    Selector::Call(unwrap_expr_list(postfix))
 }
 
 fn unwrap_range(range_part: Pair<Rule>) -> Option<Box<ExprST>> {
@@ -440,22 +435,27 @@ fn unwrap_range(range_part: Pair<Rule>) -> Option<Box<ExprST>> {
         .map(|part| Box::new(parse_expr(part).unwrap()))
 }
 
-fn to_range_expr<'a>(lhs: ExprResult<'a>, postfix: Pair<'a, Rule>) -> ExprResult<'a> {
+fn parse_range_expr<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
     let mut ranges = postfix.into_inner();
     let range_start = unwrap_range(ranges.next().unwrap());
     let range_end = unwrap_range(ranges.next().unwrap());
-    return Ok(ExprST::Range {
-        left: Box::new(lhs?),
-        range_start,
-        range_end,
-    });
+    Selector::Range(range_start, range_end)
 }
 
-fn to_pick_expr<'a>(lhs: ExprResult<'a>, postfix: Pair<'a, Rule>) -> ExprResult<'a> {
-    Ok(ExprST::Pick {
-        left: Box::new(lhs?),
-        picks: unwrap_expr_list(postfix),
-    })
+fn parse_pick_expr<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
+    Selector::Pick(unwrap_expr_list(postfix))
+}
+
+fn parse_selector<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
+    match postfix.as_rule() {
+        Rule::fn_call => parse_call_expr(postfix),
+        Rule::range_call => parse_range_expr(postfix),
+        Rule::pick_call => parse_pick_expr(postfix),
+        rule => unreachable!(
+            "parse_expr expected postfix expression, received {:?}",
+            rule
+        ),
+    }
 }
 
 fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
@@ -470,14 +470,12 @@ fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
             Rule::not => to_prefix(rhs, PreOp::Not),
             rule => unreachable!("parse_expr expected prefix expression, received {:?}", rule),
         })
-        .map_postfix(|lhs, postfix| match postfix.as_rule() {
-            Rule::fn_call => to_call_expr(lhs, postfix),
-            Rule::range_call => to_range_expr(lhs, postfix),
-            Rule::pick_call => to_pick_expr(lhs, postfix),
-            rule => unreachable!(
-                "parse_expr expected postfix expression, received {:?}",
-                rule
-            ),
+        .map_postfix(|lhs, postfix| {
+            let selector = parse_selector(postfix);
+            Ok(ExprST::Postfix {
+                left: Box::new(lhs?),
+                selector,
+            })
         })
         .map_infix(|lhs, op, rhs| {
             let op_rule = op.as_rule();
@@ -493,10 +491,45 @@ fn parse_bin_expr(input: Pair<Rule>) -> ExprResult {
         .parse(input.into_inner())
 }
 
+fn parse_lhs_ident<'a>(lhs: Pair<'a, Rule>) -> LHS<'a> {
+    let mut parts = lhs.into_inner();
+    LHS::Ident {
+        target: parts.next().unwrap().as_str(),
+        selectors: parts.map(parse_selector).collect(),
+    }
+}
+
+fn parse_lhs_list<'a>(lhs: Pair<'a, Rule>) -> LHS<'a> {
+    let elements = lhs.into_inner();
+    LHS::List(
+        elements
+            .map(|part| match part.as_rule() {
+                Rule::tilde => LHS::Tilde,
+                Rule::lhs_ident => parse_lhs_ident(part),
+                Rule::lhs_list => parse_lhs_list(part),
+                _ => unreachable!(),
+            })
+            .collect(),
+    )
+}
+
+fn parse_assign_expr(input: Pair<Rule>) -> ExprResult {
+    let mut parts = input.into_inner();
+    let lhs = parts.next().unwrap();
+    let left = match lhs.as_rule() {
+        Rule::lhs_ident => parse_lhs_ident(lhs),
+        Rule::lhs_list => parse_lhs_list(lhs),
+        _ => unreachable!(),
+    };
+    let right = Box::new(parse_expr(parts.next().unwrap())?);
+    Ok(ExprST::Assign { left, right })
+}
+
 fn parse_expr(input: Pair<Rule>) -> ExprResult {
     match input.as_rule() {
         // There will be non-binop expressions that go here
         Rule::bin_expr => parse_bin_expr(input),
+        Rule::assignment_expr => parse_assign_expr(input),
         _ => unreachable!(),
     }
 }

@@ -85,6 +85,23 @@ pub enum Former<'a> {
 }
 
 #[derive(Debug)]
+pub enum Selector<'a> {
+    Call(Vec<ExprST<'a>>),
+    Range(Option<Box<ExprST<'a>>>, Option<Box<ExprST<'a>>>),
+    Pick(Vec<ExprST<'a>>),
+}
+
+#[derive(Debug)]
+pub enum LHS<'a> {
+    Tilde,
+    Ident {
+        target: &'a str,
+        selectors: Vec<Selector<'a>>,
+    },
+    List(Vec<LHS<'a>>),
+}
+
+#[derive(Debug)]
 pub enum ExprST<'a> {
     Null,
     Newat,
@@ -128,17 +145,12 @@ pub enum ExprST<'a> {
         op: PreOp,
         right: Box<ExprST<'a>>,
     },
-    Call {
+    Postfix {
         left: Box<ExprST<'a>>,
-        args: Vec<ExprST<'a>>,
+        selector: Selector<'a>,
     },
-    Range {
-        left: Box<ExprST<'a>>,
-        range_start: Option<Box<ExprST<'a>>>,
-        range_end: Option<Box<ExprST<'a>>>,
-    },
-    Pick {
-        left: Box<ExprST<'a>>,
-        picks: Vec<ExprST<'a>>,
+    Assign {
+        left: LHS<'a>,
+        right: Box<ExprST<'a>>,
     },
 }

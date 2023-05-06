@@ -15,6 +15,8 @@ true_ = { "true" }
 false_ = { "false" }
 newat = { "newat" }
 func = _{ "func" }
+if_ = _{ "if" ~ __ }
+else_ = _{ "else" ~ __ }
 
 mod_ = @{ "mod" ~ __ }
 div = @{ "div" ~ __ }
@@ -196,9 +198,17 @@ primary = _{
 
 bin_expr = { prefix_op* ~ primary ~ selector* ~ (bin_op ~ prefix_op* ~ primary ~ selector*)* }
 
-expr = _{ bin_expr }
+assignment_expr = { lhs ~ bollocks ~ expr }
+
+expr = _{ 
+   | assignment_expr
+   | bin_expr
+}
 
 expr_block = _{ expr ~ (semicolon ~ expr)* }
+
+captured_semicolon = @{ semicolon }
+block_with_capture = _{ l_brace ~ expr_block ~ captured_semicolon? ~ r_brace }
 
 // Special sub-expressions
 
@@ -320,5 +330,16 @@ param_list = { l_paren ~ (param ~ (comma ~ param)*)? ~ r_paren }
 
 short_func = { param_list ~ arrow ~ expr }
 
-captured_semicolon = @{ semicolon }
-long_func = { func ~ param_list ~ l_brace ~ expr_block ~ captured_semicolon? ~ r_brace }
+long_func = { func ~ param_list ~ block_with_capture }
+
+// Left-Hand Side for assignment
+
+lhs_ident = { ident ~ selector* }
+
+lhs_list_item = _{ tilde | lhs }
+lhs_list = { l_brack ~ lhs_list_item ~ (comma ~ lhs_list_item)* ~ r_brack }
+
+lhs = _{
+   | lhs_ident
+   | lhs_list
+}
