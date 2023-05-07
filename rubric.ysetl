@@ -34,3 +34,19 @@ aaaa %foo bbbb %bar cccc;
 foo(1,a){a+c}(1..);
 
 a := b(d) := c;
+
+if a ? b : c;
+if a ? (if b ? c : (if d ? e : f)) : g;
+
+case {
+    a > b : c,
+    a < b : { },
+    a < b : { g; },
+    ~ : e
+};
+
+case (foo > bar) {
+    a > b : {},
+    a < b : {},
+    ~ : e
+}

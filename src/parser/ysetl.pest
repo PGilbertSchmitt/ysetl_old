@@ -15,8 +15,8 @@ true_ = { "true" }
 false_ = { "false" }
 newat = { "newat" }
 func = _{ "func" }
-if_ = _{ "if" ~ __ }
-else_ = _{ "else" ~ __ }
+if_ = @{ "if" ~ __ }
+case_ = @{ "case" ~ __ }
 
 mod_ = @{ "mod" ~ __ }
 div = @{ "div" ~ __ }
@@ -201,6 +201,8 @@ bin_expr = { prefix_op* ~ primary ~ selector* ~ (bin_op ~ prefix_op* ~ primary ~
 assignment_expr = { lhs ~ bollocks ~ expr }
 
 expr = _{ 
+   | ternary_expr
+   | switch_expr
    | assignment_expr
    | bin_expr
 }
@@ -208,7 +210,7 @@ expr = _{
 expr_block = _{ expr ~ (semicolon ~ expr)* }
 
 captured_semicolon = @{ semicolon }
-block_with_capture = _{ l_brace ~ expr_block ~ captured_semicolon? ~ r_brace }
+block_with_capture = _{ l_brace ~ (expr_block ~ captured_semicolon?)? ~ r_brace }
 
 // Special sub-expressions
 
@@ -343,3 +345,31 @@ lhs = _{
    | lhs_ident
    | lhs_list
 }
+
+// Conditionals
+
+ternary_expr = {
+   if_
+   ~ expr
+   ~ qst
+   ~ expr
+   ~ colon
+   ~ expr
+}
+
+case_consequence = _{
+   | block_with_capture
+   | expr
+}
+
+case = { (tilde | bin_expr) ~ colon ~ case_consequence }
+
+switch_expr = {
+   case_
+   ~ nested_expression?
+   ~ l_brace
+   ~ case ~ (comma ~ case)*
+   ~ r_brace
+}
+
+// Select expressions

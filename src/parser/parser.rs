@@ -4,7 +4,9 @@ use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::PrattParser;
 use pest::Parser;
 
-use super::ast::{BinOp, Bound, ExprST, Former, IteratorST, IteratorType, PreOp, Selector, LHS};
+use super::ast::{
+    BinOp, Bound, Case, ExprST, Former, IteratorST, IteratorType, PreOp, Selector, LHS,
+};
 use super::debug::pair_str;
 use super::grammar::Rule;
 use super::grammar::YsetlParser;
@@ -163,11 +165,7 @@ fn parse_param_list<'a>(param_list: Pair<'a, Rule>) -> Result<ParamLists, String
     }
 }
 
-fn parse_func<'a>(func_pair: Pair<'a, Rule>) -> ExprResult<'a> {
-    let mut parts = func_pair.into_inner();
-    let ParamLists(req_params, opt_params, locked_params) =
-        parse_param_list(parts.next().unwrap())?;
-
+fn drain_block<'a>(mut parts: Pairs<'a, Rule>) -> (Vec<ExprST<'a>>, bool) {
     let mut body = Vec::new();
     while let Some(expr) = parts.peek().and_then(|part_type| {
         if part_type.as_rule() != Rule::captured_semicolon {
@@ -176,10 +174,20 @@ fn parse_func<'a>(func_pair: Pair<'a, Rule>) -> ExprResult<'a> {
             None
         }
     }) {
-        body.push(parse_expr(expr)?)
+        body.push(parse_expr(expr).unwrap())
     }
 
+    // After exhausting the iterator above, there's either a captured semicolon or nothing
     let null_return = parts.next().is_some();
+    (body, null_return)
+}
+
+fn parse_func<'a>(func_pair: Pair<'a, Rule>) -> ExprResult<'a> {
+    let mut parts = func_pair.into_inner();
+    let ParamLists(req_params, opt_params, locked_params) =
+        parse_param_list(parts.next().unwrap())?;
+
+    let (body, null_return) = drain_block(parts);
 
     Ok(ExprST::Function {
         req_params,
@@ -525,11 +533,57 @@ fn parse_assign_expr(input: Pair<Rule>) -> ExprResult {
     Ok(ExprST::Assign { left, right })
 }
 
+fn parse_ternary_expr(input: Pair<Rule>) -> ExprResult {
+    let mut parts = input.into_inner();
+    parts.next(); // Captured "if"
+    Ok(ExprST::Ternary {
+        condition: Box::new(parse_expr(parts.next().unwrap())?),
+        consequence: Box::new(parse_expr(parts.next().unwrap())?),
+        alternative: Box::new(parse_expr(parts.next().unwrap())?),
+    })
+}
+
+fn parse_case(input: Pair<Rule>) -> Case {
+    let mut parts = input.into_inner();
+    let condition_part = parts.next().unwrap();
+    let (consequence, null_return) = drain_block(parts);
+    let condition = match condition_part.as_rule() {
+        Rule::tilde => None,
+        _ => Some(Box::new(parse_expr(condition_part).unwrap())),
+    };
+    Case {
+        condition,
+        consequence,
+        null_return,
+    }
+}
+
+fn parse_switch_expr(input: Pair<Rule>) -> ExprResult {
+    let mut parts = input.into_inner();
+    parts.next(); // Captured "case"
+    let next = parts.peek().unwrap();
+    let switch_input = match next.as_rule() {
+        Rule::nested_expression => Some(Box::new(parse_expr(
+            parts.next().unwrap().into_inner().next().unwrap(),
+        )?)),
+        Rule::case => None,
+        _ => unreachable!(),
+    };
+    let cases = parts.map(parse_case).collect();
+    Ok(ExprST::Switch {
+        input: switch_input,
+        cases,
+    })
+}
+
 fn parse_expr(input: Pair<Rule>) -> ExprResult {
     match input.as_rule() {
         // There will be non-binop expressions that go here
         Rule::bin_expr => parse_bin_expr(input),
         Rule::assignment_expr => parse_assign_expr(input),
-        _ => unreachable!(),
+        Rule::ternary_expr => parse_ternary_expr(input),
+        Rule::switch_expr => parse_switch_expr(input),
+        // _ => unreachable!(),
+        top_level => unreachable!("{:?}: {}", top_level, input.as_str()),
     }
 }

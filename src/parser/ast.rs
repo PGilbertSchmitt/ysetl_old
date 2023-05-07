@@ -102,6 +102,13 @@ pub enum LHS<'a> {
 }
 
 #[derive(Debug)]
+pub struct Case<'a> {
+    pub condition: Option<Box<ExprST<'a>>>,
+    pub consequence: Vec<ExprST<'a>>,
+    pub null_return: bool,
+}
+
+#[derive(Debug)]
 pub enum ExprST<'a> {
     Null,
     Newat,
@@ -152,5 +159,14 @@ pub enum ExprST<'a> {
     Assign {
         left: LHS<'a>,
         right: Box<ExprST<'a>>,
+    },
+    Ternary {
+        condition: Box<ExprST<'a>>,
+        consequence: Box<ExprST<'a>>,
+        alternative: Box<ExprST<'a>>,
+    },
+    Switch {
+        input: Option<Box<ExprST<'a>>>,
+        cases: Vec<Case<'a>>,
     },
 }
