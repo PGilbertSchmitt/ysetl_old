@@ -49,4 +49,8 @@ case (foo > bar) {
     a > b : {},
     a < b : {},
     ~ : e
-}
+};
+
+choose x in X | x > 5;
+exists x=f(y), a=g(b) | x != a, x > 5;
+forall z in Z | g(z);

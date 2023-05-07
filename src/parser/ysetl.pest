@@ -200,9 +200,12 @@ bin_expr = { prefix_op* ~ primary ~ selector* ~ (bin_op ~ prefix_op* ~ primary ~
 
 assignment_expr = { lhs ~ bollocks ~ expr }
 
+select_expr = { select_op ~ iterator }
+
 expr = _{ 
    | ternary_expr
    | switch_expr
+   | select_expr
    | assignment_expr
    | bin_expr
 }
@@ -371,5 +374,3 @@ switch_expr = {
    ~ case ~ (comma ~ case)*
    ~ r_brace
 }
-
-// Select expressions

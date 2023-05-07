@@ -5,7 +5,7 @@ use pest::pratt_parser::PrattParser;
 use pest::Parser;
 
 use super::ast::{
-    BinOp, Bound, Case, ExprST, Former, IteratorST, IteratorType, PreOp, Selector, LHS,
+    BinOp, Bound, Case, ExprST, Former, IteratorST, IteratorType, Postfix, PreOp, SelectOp, LHS,
 };
 use super::debug::pair_str;
 use super::grammar::Rule;
@@ -347,7 +347,8 @@ fn parse_iterator_list_item<'a>(item: Pair<'a, Rule>) -> IteratorType<'a> {
     }
 }
 
-fn parse_iterator<'a>(mut iterator_parts: Pairs<'a, Rule>) -> IteratorST<'a> {
+fn parse_iterator<'a>(iterator_pair: Pair<'a, Rule>) -> IteratorST<'a> {
+    let mut iterator_parts = iterator_pair.into_inner();
     IteratorST {
         iterators: iterator_parts
             .next()
@@ -398,7 +399,7 @@ fn parse_former<'a>(mut former: Pairs<'a, Rule>) -> Former<'a> {
                 }
                 Rule::iterator_former => {
                     let output = Box::new(parse_expr(former_parts.next().unwrap()).unwrap());
-                    let iterator = parse_iterator(former_parts.next().unwrap().into_inner());
+                    let iterator = parse_iterator(former_parts.next().unwrap());
                     Former::Iterator { iterator, output }
                 }
                 _ => unreachable!(),
@@ -432,8 +433,8 @@ fn unwrap_expr_list<'a>(list: Pair<'a, Rule>) -> Vec<ExprST> {
         .collect::<Vec<_>>()
 }
 
-fn parse_call_expr<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
-    Selector::Call(unwrap_expr_list(postfix))
+fn parse_call_expr<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
+    Postfix::Call(unwrap_expr_list(postfix))
 }
 
 fn unwrap_range(range_part: Pair<Rule>) -> Option<Box<ExprST>> {
@@ -443,18 +444,18 @@ fn unwrap_range(range_part: Pair<Rule>) -> Option<Box<ExprST>> {
         .map(|part| Box::new(parse_expr(part).unwrap()))
 }
 
-fn parse_range_expr<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
+fn parse_range_expr<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
     let mut ranges = postfix.into_inner();
     let range_start = unwrap_range(ranges.next().unwrap());
     let range_end = unwrap_range(ranges.next().unwrap());
-    Selector::Range(range_start, range_end)
+    Postfix::Range(range_start, range_end)
 }
 
-fn parse_pick_expr<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
-    Selector::Pick(unwrap_expr_list(postfix))
+fn parse_pick_expr<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
+    Postfix::Pick(unwrap_expr_list(postfix))
 }
 
-fn parse_selector<'a>(postfix: Pair<'a, Rule>) -> Selector<'a> {
+fn parse_selector<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
     match postfix.as_rule() {
         Rule::fn_call => parse_call_expr(postfix),
         Rule::range_call => parse_range_expr(postfix),
@@ -576,6 +577,21 @@ fn parse_switch_expr(input: Pair<Rule>) -> ExprResult {
     })
 }
 
+fn parse_select_expr(input: Pair<Rule>) -> ExprResult {
+    let mut parts = input.into_inner();
+    let select_op = match parts.next().unwrap().as_rule() {
+        Rule::choose => SelectOp::Choose,
+        Rule::forall => SelectOp::ForAll,
+        Rule::exists => SelectOp::Exists,
+        _ => unreachable!(),
+    };
+    let iterator = parse_iterator(parts.next().unwrap());
+    Ok(ExprST::Select {
+        op: select_op,
+        iterator,
+    })
+}
+
 fn parse_expr(input: Pair<Rule>) -> ExprResult {
     match input.as_rule() {
         // There will be non-binop expressions that go here
@@ -583,7 +599,7 @@ fn parse_expr(input: Pair<Rule>) -> ExprResult {
         Rule::assignment_expr => parse_assign_expr(input),
         Rule::ternary_expr => parse_ternary_expr(input),
         Rule::switch_expr => parse_switch_expr(input),
-        // _ => unreachable!(),
-        top_level => unreachable!("{:?}: {}", top_level, input.as_str()),
+        Rule::select_expr => parse_select_expr(input),
+        _ => unreachable!(),
     }
 }

@@ -85,7 +85,7 @@ pub enum Former<'a> {
 }
 
 #[derive(Debug)]
-pub enum Selector<'a> {
+pub enum Postfix<'a> {
     Call(Vec<ExprST<'a>>),
     Range(Option<Box<ExprST<'a>>>, Option<Box<ExprST<'a>>>),
     Pick(Vec<ExprST<'a>>),
@@ -96,7 +96,7 @@ pub enum LHS<'a> {
     Tilde,
     Ident {
         target: &'a str,
-        selectors: Vec<Selector<'a>>,
+        selectors: Vec<Postfix<'a>>,
     },
     List(Vec<LHS<'a>>),
 }
@@ -106,6 +106,13 @@ pub struct Case<'a> {
     pub condition: Option<Box<ExprST<'a>>>,
     pub consequence: Vec<ExprST<'a>>,
     pub null_return: bool,
+}
+
+#[derive(Debug)]
+pub enum SelectOp {
+    Choose,
+    ForAll,
+    Exists,
 }
 
 #[derive(Debug)]
@@ -154,7 +161,7 @@ pub enum ExprST<'a> {
     },
     Postfix {
         left: Box<ExprST<'a>>,
-        selector: Selector<'a>,
+        selector: Postfix<'a>,
     },
     Assign {
         left: LHS<'a>,
@@ -168,5 +175,9 @@ pub enum ExprST<'a> {
     Switch {
         input: Option<Box<ExprST<'a>>>,
         cases: Vec<Case<'a>>,
+    },
+    Select {
+        op: SelectOp,
+        iterator: IteratorST<'a>,
     },
 }
