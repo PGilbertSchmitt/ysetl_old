@@ -181,3 +181,8 @@ pub enum ExprST<'a> {
         iterator: IteratorST<'a>,
     },
 }
+
+pub struct Program<'a> {
+    pub name: &'static str,
+    pub expressions: Vec<ExprST<'a>>,
+}

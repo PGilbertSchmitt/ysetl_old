@@ -1,11 +1,11 @@
 use lazy_static;
-use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::PrattParser;
 use pest::Parser;
 
 use super::ast::{
-    BinOp, Bound, Case, ExprST, Former, IteratorST, IteratorType, Postfix, PreOp, SelectOp, LHS,
+    BinOp, Bound, Case, ExprST, Former, IteratorST, IteratorType, Postfix, PreOp, Program,
+    SelectOp, LHS,
 };
 use super::debug::pair_str;
 use super::grammar::Rule;
@@ -60,8 +60,13 @@ lazy_static::lazy_static! {
     };
 }
 
-pub fn parse_program(input: &str) -> Result<(), Error<Rule>> {
-    let program = YsetlParser::parse(Rule::program_input, input)?
+pub fn parse_from_expr(input: &str) -> ExprResult {
+    let expr = YsetlParser::parse(Rule::expr, input).unwrap().next().unwrap();
+    parse_expr(expr)
+}
+
+pub fn parse_from_program(input: &'static str) -> Result<Program, String> {
+    let program = YsetlParser::parse(Rule::program_input, input).unwrap()
         .next()
         .unwrap();
 
@@ -72,20 +77,19 @@ pub fn parse_program(input: &str) -> Result<(), Error<Rule>> {
             let name_node = inner.next().unwrap();
             let program_name = atom_value(name_node);
 
-            println!("Executing program '{}'", program_name);
-
+            let mut expressions: Vec<ExprST> = vec![];
+            
             for pair in inner {
-                // println!("{:?}", pair);
-                println!("{} -> {:?}", pair.as_str(), parse_expr(pair));
+                expressions.push(parse_expr(pair)?);
             }
+            Ok(Program {
+                name: program_name,
+                expressions,
+            })
         }
-        Rule::program_missing_expr => {
-            println!("Program must have at least one expression");
-        }
+        Rule::program_missing_expr => Err("Program must have at least one expression".to_owned()),
         _ => unreachable!(),
     }
-
-    Ok(())
 }
 
 fn atom_value(atom_pair: Pair<Rule>) -> &str {
