@@ -14,6 +14,9 @@ pub mod codes {
     pub const TRUE: OpCode = 2;
     pub const FALSE: OpCode = 3;
 
+    // Control
+    pub const POP: OpCode = 20;
+
     // Binops 200-225
     pub const NULL_COAL: OpCode = 200;
     pub const TUPLE_START: OpCode = 201;
@@ -56,6 +59,8 @@ lazy_static::lazy_static! {
             (codes::NULL,        Def([0, 0], "Push Null")),
             (codes::TRUE,        Def([0, 0], "Push True")),
             (codes::FALSE,       Def([0, 0], "Push False")),
+
+            (codes::POP,         Def([0, 0], "Pop")),
 
             (codes::NULL_COAL,   Def([0, 0], "OpNullCoal")),
             (codes::TUPLE_START, Def([0, 0], "OpTupleStart")),

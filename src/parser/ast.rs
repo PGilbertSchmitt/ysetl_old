@@ -183,6 +183,6 @@ pub enum ExprST<'a> {
 }
 
 pub struct Program<'a> {
-    pub name: &'static str,
+    pub name: &'a str,
     pub expressions: Vec<ExprST<'a>>,
 }

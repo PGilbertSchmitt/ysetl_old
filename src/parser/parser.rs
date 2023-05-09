@@ -65,8 +65,8 @@ pub fn parse_from_expr(input: &str) -> ExprResult {
     parse_expr(expr)
 }
 
-pub fn parse_from_program(input: &'static str) -> Result<Program, String> {
-    let program = YsetlParser::parse(Rule::program_input, input).unwrap()
+pub fn parse_from_program(input: &str) -> Result<Program, String> {
+    let program = YsetlParser::parse(Rule::program_input, &input).unwrap()
         .next()
         .unwrap();
 
@@ -114,7 +114,7 @@ fn number_value(number_pair: Pair<Rule>) -> ExprST {
  * with the only exception being that the exponent marker can be 'e', 'E', 'f', or 'F'.
  * There is no semantic difference between these markers, it's up to personal preference.
  */
-fn construct_number(base: &str, decimal: &str, exp: &str) -> ExprST<'static> {
+fn construct_number<'a>(base: &str, decimal: &str, exp: &str) -> ExprST<'a> {
     let mut is_float = false;
     let mut number_str = base.to_owned();
 

@@ -1,9 +1,9 @@
-use bytes::{Bytes, Buf};
+use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
 use crate::code::code::codes;
-use crate::object::object::Object;
 use crate::compiler::compiler::Bytecode;
+use crate::object::object::Object;
 
 const STACK_SIZE: usize = 2048;
 
@@ -24,6 +24,7 @@ pub struct VM {
     constants: Vec<Object>,
 
     stack: Vec<Object>,
+    last_pop: Object,
 }
 
 impl VM {
@@ -33,6 +34,7 @@ impl VM {
             constants: bytecode.constants,
 
             stack: Vec::with_capacity(STACK_SIZE),
+            last_pop: Object::Null,
         }
     }
 
@@ -45,34 +47,40 @@ impl VM {
         while c.has_remaining() {
             let op = c.get_u8();
             match op {
-                codes::CONST => {
-                    self.stack.push(self.constants[c.get_u16() as usize]);
-                },
-                codes::NULL => {
-                    self.stack.push(Object::Null)
-                },
-                codes::TRUE => {
-                    self.stack.push(Object::True)
-                },
-                codes::FALSE => {
-                    self.stack.push(Object::False)
-                },
-                codes::ADD |
-                codes::SUBTRACT => {
+                codes::CONST => self.stack.push(self.constants[c.get_u16() as usize]),
+                codes::NULL => self.stack.push(Object::Null),
+                codes::TRUE => self.stack.push(Object::True),
+                codes::FALSE => self.stack.push(Object::False),
+
+                codes::POP => {
+                    self.last_pop = self.stack.pop().unwrap();
+                }
+
+                codes::ADD | codes::SUBTRACT => {
                     let (right, left) = self.stack.pop_two();
-                    self.stack.push(Object::math(left, right, op).unwrap());
-                },
+                    self.stack
+                        .push(Object::numeric_math(left, right, op).unwrap());
+                }
                 codes::EQ => {
                     let (right, left) = self.stack.pop_two();
-                    self.stack.push(if left == right { Object::True } else { Object::False });
-                },
+                    self.stack.push(if left == right {
+                        Object::True
+                    } else {
+                        Object::False
+                    });
+                }
                 codes::NEQ => {
                     let (right, left) = self.stack.pop_two();
-                    self.stack.push(if left != right { Object::True } else { Object::False });
-                },
-                code => unimplemented!("Don't know how to execute code {code}")
+                    self.stack.push(if left != right {
+                        Object::True
+                    } else {
+                        Object::False
+                    });
+                }
+                code => unimplemented!("Don't know how to execute code {code}"),
             }
         }
-        self.stack.pop().unwrap()
+
+        self.last_pop
     }
 }

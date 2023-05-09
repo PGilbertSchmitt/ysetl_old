@@ -26,7 +26,7 @@ impl Object {
         }
     }
 
-    pub fn math(left: Object, right: Object, op: OpCode) -> Result<Object, String> {
+    pub fn numeric_math(left: Object, right: Object, op: OpCode) -> Result<Object, String> {
         if let (Integer(left), Integer(right)) = (left, right) {
             return Ok(Integer(int_math(left, right, op)));
         }

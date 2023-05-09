@@ -1,6 +1,6 @@
 use crate::code::code::{codes, Op};
 use crate::object::object::Object as Obj;
-use crate::parser::ast::{BinOp, ExprST};
+use crate::parser::ast::{BinOp, ExprST, Program};
 use bytes::{Bytes, BytesMut};
 
 pub struct Compiler {
@@ -26,7 +26,14 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&mut self, node: ExprST) {
+    pub fn compile_program(&mut self, node: Program) {
+        for expr in node.expressions.into_iter() {
+            self.compile_expr(expr);
+            self.emit(&codes::POP.make());
+        }
+    }
+
+    pub fn compile_expr(&mut self, node: ExprST) {
         match node {
             ExprST::Null => {
                 self.emit(&codes::NULL.make());
@@ -44,8 +51,8 @@ impl Compiler {
             ExprST::Infix { op, left, right } => {
                 // Need special jump logic when op is AND/OR/IMPL so that right side is only
                 // evaluated in correct circumstances.
-                self.compile(*left);
-                self.compile(*right);
+                self.compile_expr(*left);
+                self.compile_expr(*right);
                 self.emit_binop(op);
             }
             _ => unimplemented!(),
