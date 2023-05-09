@@ -8,9 +8,39 @@ pub struct Def(pub [usize; 2], pub &'static str);
 pub mod codes {
     use super::OpCode;
 
-    pub const CONST:OpCode=0;
-    pub const ADD:OpCode=1;
-    pub const SUBTRACT:OpCode=2;
+    // Values
+    pub const CONST: OpCode = 0;
+    pub const NULL: OpCode = 1;
+    pub const TRUE: OpCode = 2;
+    pub const FALSE: OpCode = 3;
+
+    // Binops 200-225
+    pub const NULL_COAL: OpCode = 200;
+    pub const TUPLE_START: OpCode = 201;
+    pub const EXP: OpCode = 202;
+    pub const MULT: OpCode = 203;
+    pub const INTER: OpCode = 204;
+    pub const DIV: OpCode = 205;
+    pub const MOD: OpCode = 206;
+    pub const INT_DIV: OpCode = 207;
+    pub const ADD: OpCode = 208;
+    pub const SUBTRACT: OpCode = 209;
+    pub const WITH: OpCode = 210;
+    pub const LESS: OpCode = 211;
+    pub const UNION: OpCode = 212;
+    pub const IN: OpCode = 213;
+    pub const NOTIN: OpCode = 214;
+    pub const SUBSET: OpCode = 215;
+    pub const LT: OpCode = 216;
+    pub const LTEQ: OpCode = 217;
+    pub const GT: OpCode = 218;
+    pub const GTEQ: OpCode = 219;
+    pub const EQ: OpCode = 220;
+    pub const NEQ: OpCode = 221;
+    pub const AND: OpCode = 222;
+    pub const OR: OpCode = 223;
+    pub const IMPL: OpCode = 224;
+    pub const IFF: OpCode = 225;
 }
 
 pub trait Op {
@@ -22,9 +52,37 @@ pub trait Op {
 lazy_static::lazy_static! {
     pub static ref DEFINITIONS: HashMap<u8, Def> = {
         HashMap::from([
-            (codes::CONST,    Def([2, 0], "Push Const")),
-            (codes::ADD,      Def([0, 0], "OpAdd")),
-            (codes::SUBTRACT, Def([0, 0], "OpSubtract")),
+            (codes::CONST,       Def([2, 0], "Push Const")),
+            (codes::NULL,        Def([0, 0], "Push Null")),
+            (codes::TRUE,        Def([0, 0], "Push True")),
+            (codes::FALSE,       Def([0, 0], "Push False")),
+
+            (codes::NULL_COAL,   Def([0, 0], "OpNullCoal")),
+            (codes::TUPLE_START, Def([0, 0], "OpTupleStart")),
+            (codes::EXP,         Def([0, 0], "OpExp")),
+            (codes::MULT,        Def([0, 0], "OpMult")),
+            (codes::INTER,       Def([0, 0], "OpInter")),
+            (codes::DIV,         Def([0, 0], "OpDiv")),
+            (codes::MOD,         Def([0, 0], "OpMod")),
+            (codes::INT_DIV,     Def([0, 0], "OpIntDiv")),
+            (codes::ADD,         Def([0, 0], "OpAdd")),
+            (codes::SUBTRACT,    Def([0, 0], "OpSubtract")),
+            (codes::WITH,        Def([0, 0], "OpWith")),
+            (codes::LESS,        Def([0, 0], "OpLess")),
+            (codes::UNION,       Def([0, 0], "OpUnion")),
+            (codes::IN,          Def([0, 0], "OpIn")),
+            (codes::NOTIN,       Def([0, 0], "OpNotin")),
+            (codes::SUBSET,      Def([0, 0], "OpSubset")),
+            (codes::LT,          Def([0, 0], "OpLT")),
+            (codes::LTEQ,        Def([0, 0], "OpLTEQ")),
+            (codes::GT,          Def([0, 0], "OpGT")),
+            (codes::GTEQ,        Def([0, 0], "OpGTEQ")),
+            (codes::EQ,          Def([0, 0], "OpEQ")),
+            (codes::NEQ,         Def([0, 0], "OpNEQ")),
+            (codes::AND,         Def([0, 0], "OpAnd")),
+            (codes::OR,          Def([0, 0], "OpOr")),
+            (codes::IMPL,        Def([0, 0], "OpImpl")),
+            (codes::IFF,         Def([0, 0], "OpIff")),
         ])
     };
     static ref EMPTY_SIZES: [usize; 2] = [0, 0];
@@ -68,7 +126,7 @@ impl Op for OpCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{Op,codes};
+    use super::{codes, Op};
 
     #[test]
     fn op_const() {

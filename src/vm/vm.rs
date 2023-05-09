@@ -7,6 +7,17 @@ use crate::compiler::compiler::Bytecode;
 
 const STACK_SIZE: usize = 2048;
 
+trait Stack {
+    /** Pops last two objects off the stack, and returns them in the order they're removed */
+    fn pop_two(&mut self) -> (Object, Object);
+}
+
+impl Stack for Vec<Object> {
+    fn pop_two(&mut self) -> (Object, Object) {
+        (self.pop().unwrap(), self.pop().unwrap())
+    }
+}
+
 #[derive(Debug)]
 pub struct VM {
     instructions: Bytes,
@@ -37,13 +48,29 @@ impl VM {
                 codes::CONST => {
                     self.stack.push(self.constants[c.get_u16() as usize]);
                 },
+                codes::NULL => {
+                    self.stack.push(Object::Null)
+                },
+                codes::TRUE => {
+                    self.stack.push(Object::True)
+                },
+                codes::FALSE => {
+                    self.stack.push(Object::False)
+                },
                 codes::ADD |
                 codes::SUBTRACT => {
-                    let right = self.stack.pop().unwrap();
-                    let left = self.stack.pop().unwrap();
+                    let (right, left) = self.stack.pop_two();
                     self.stack.push(Object::math(left, right, op).unwrap());
                 },
-                _ => unimplemented!()
+                codes::EQ => {
+                    let (right, left) = self.stack.pop_two();
+                    self.stack.push(if left == right { Object::True } else { Object::False });
+                },
+                codes::NEQ => {
+                    let (right, left) = self.stack.pop_two();
+                    self.stack.push(if left != right { Object::True } else { Object::False });
+                },
+                code => unimplemented!("Don't know how to execute code {code}")
             }
         }
         self.stack.pop().unwrap()
