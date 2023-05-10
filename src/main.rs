@@ -18,7 +18,5 @@ fn main() {
     compiler.compile_program(expr);
     let bc = compiler.finish();
     let mut vm = VM::new(bc);
-    let result = vm.run();  
-    println!("\nExpression resulted in {:?}", result);
-    println!("{:?}", vm);
+    let _result = vm.run();
 }

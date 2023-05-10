@@ -46,7 +46,11 @@ impl Compiler {
             }
             ExprST::Integer(value) => {
                 let const_ptr = self.add_const(Obj::Integer(value));
-                self.emit(&codes::CONST.make_with(&[const_ptr]));
+                self.emit_const(const_ptr);
+            }
+            ExprST::Float(value) => {
+                let const_ptr = self.add_const(Obj::Float(value));
+                self.emit_const(const_ptr);
             }
             ExprST::Infix { op, left, right } => {
                 // Need special jump logic when op is AND/OR/IMPL so that right side is only
@@ -55,7 +59,7 @@ impl Compiler {
                 self.compile_expr(*right);
                 self.emit_binop(op);
             }
-            _ => unimplemented!(),
+            node => unimplemented!("Not sure how to compile {:?}", node),
         };
     }
 
@@ -77,11 +81,15 @@ impl Compiler {
         self.instructions.extend_from_slice(bytes);
     }
 
+    fn emit_const(&mut self, const_ptr: usize) {
+        self.instructions.extend_from_slice(&codes::CONST.make_with(&[const_ptr]));
+    }
+
     fn emit_binop(&mut self, binop: BinOp) {
         let op = match binop {
             BinOp::NullCoal => codes::NULL_COAL,
             BinOp::TupleStart => codes::TUPLE_START,
-            BinOp::Exp => codes::TUPLE_START,
+            BinOp::Exp => codes::EXP,
             BinOp::Mult => codes::MULT,
             BinOp::Inter => codes::INTER,
             BinOp::Div => codes::DIV,
@@ -117,5 +125,50 @@ impl Compiler {
     fn add_const(&mut self, constant: Obj) -> usize {
         self.constants.push(constant);
         self.constants.len() - 1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Bytes};
+    use super::{Compiler, Bytecode};
+    use crate::parser::parser;
+    use crate::code::code::codes::*;
+    use crate::object::object::Object::*;
+
+    fn compile(input: &str) -> Bytecode {
+        let mut c = Compiler::new();
+        c.compile_expr(parser::parse_from_expr(input).unwrap());
+        c.finish()
+    }
+
+    #[test]
+    fn literals() {
+        let int_code = compile("3");
+        assert_eq!(int_code.instuctions, Bytes::from(vec![CONST, 0, 0]));
+        assert_eq!(int_code.constants[0], Integer(3));
+
+        let float_code = compile("3.0");
+        assert_eq!(float_code.instuctions, Bytes::from(vec![CONST, 0, 0]));
+        assert_eq!(float_code.constants[0], Float(3.0));
+
+        let true_code = compile("true");
+        assert_eq!(true_code.instuctions, Bytes::from(vec![TRUE]));
+        assert!(true_code.constants.is_empty());
+
+        let false_code = compile("false");
+        assert_eq!(false_code.instuctions, Bytes::from(vec![FALSE]));
+        assert!(false_code.constants.is_empty());
+
+        let null_code = compile("null");
+        assert_eq!(null_code.instuctions, Bytes::from(vec![NULL]));
+        assert!(null_code.constants.is_empty());
+    }
+
+    #[test]
+    fn simple_math() {
+        assert_eq!(compile("3 + 4").instuctions, Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, ADD]));
+        assert_eq!(compile("3 - 4").instuctions, Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, SUBTRACT]));
+        assert_eq!(compile("3 + (4 / 5)").instuctions, Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, CONST, 0, 2, DIV, ADD]));
     }
 }

@@ -54,12 +54,18 @@ impl VM {
 
                 codes::POP => {
                     self.last_pop = self.stack.pop().unwrap();
+                    println!("Last pop: {:?}", self.last_pop);
                 }
 
-                codes::ADD | codes::SUBTRACT => {
+                codes::ADD |
+                codes::SUBTRACT |
+                codes::MULT |
+                codes::DIV |
+                codes::INT_DIV |
+                codes::EXP => {
                     let (right, left) = self.stack.pop_two();
                     self.stack
-                        .push(Object::numeric_math(left, right, op).unwrap());
+                        .push(Object::math(left, right, op).unwrap());
                 }
                 codes::EQ => {
                     let (right, left) = self.stack.pop_two();
@@ -82,5 +88,69 @@ impl VM {
         }
 
         self.last_pop
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VM;
+    use crate::compiler::compiler::Compiler;
+    use crate::parser::parser;
+    use crate::object::object::Object::*;
+
+    fn vm_from(input: &str) -> VM {
+        let mut c = Compiler::new();
+        c.compile_expr(parser::parse_from_expr(input).unwrap());
+        VM::new(c.finish())
+    }
+
+    #[test]
+    fn op_const() {
+        let mut vm = vm_from("99");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Integer(99)));
+    }
+
+    #[test]
+    fn op_keyword_literals() {
+        let mut vm = vm_from("true");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&True));
+
+        let mut vm = vm_from("false");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&False));
+
+        let mut vm = vm_from("null");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Null));
+    }
+
+    #[test]
+    fn math_ops() {
+        let mut vm = vm_from("3 + 4");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Integer(7)));
+        
+        let mut vm = vm_from("3 - 4");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Integer(-1)));
+        
+        let mut vm = vm_from("3.0 * 4");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Float(12.0)));
+        
+        let mut vm = vm_from("4 / 2");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Float(2.0)));
+        
+        let mut vm = vm_from("4 div 2");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Integer(2)));
+        
+        let mut vm = vm_from("4 ** 2");
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(&Integer(16)));
+
     }
 }

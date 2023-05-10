@@ -141,6 +141,6 @@ mod tests {
 
     #[test]
     fn op_add() {
-        assert_eq!(&codes::ADD.make()[..], [1]);
+        assert_eq!(&codes::ADD.make()[..], [codes::ADD]);
     }
 }
