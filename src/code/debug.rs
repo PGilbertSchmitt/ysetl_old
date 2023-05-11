@@ -1,26 +1,28 @@
-use bytes::{BytesMut, Buf};
+use bytes::{Bytes, Buf};
 use super::code::{DEFINITIONS, Def};
 
-pub fn print_bytes(bytes: &BytesMut) {
-    // bytes.as_re
+pub fn print_bytes(bytes: &Bytes) -> String {
+    let len = bytes.len();
     let mut buf = bytes.as_ref();
 
     let mut parts: Vec<String> = vec![];
     while buf.remaining() > 0 {
-        parts.push(print_op(&mut buf));
+        let pos = len - buf.remaining();
+        parts.push(print_op(&mut buf, pos));
     }
 
-    println!("{}", parts.join("\n"));
+    parts.join("\n")
 }
 
-fn print_op(buf: &mut dyn Buf) -> String {
+fn print_op(buf: &mut dyn Buf, pos: usize) -> String {
     let code_byte = buf.get_u8();
     let &Def(sizes, name) = DEFINITIONS.get(&code_byte).expect(&format!(
         "Error reading bytes, found unexpected op byte {}",
         &code_byte
     ));
 
-    let mut output = String::from(name);
+    let mut output = format!("{:>4}: ", pos.to_string());
+    output.push_str(name);
 
     for size in sizes.iter() {
         if *size == 0 { break }

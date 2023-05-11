@@ -1,7 +1,7 @@
 use crate::code::code::{codes, Op};
 use crate::object::object::Object as Obj;
-use crate::parser::ast::{BinOp, ExprST, Program, PreOp};
-use bytes::{Bytes, BytesMut};
+use crate::parser::ast::{BinOp, ExprST, PreOp, Program};
+use bytes::{Bytes, BytesMut, BufMut};
 
 pub struct Compiler {
     instructions: BytesMut,
@@ -74,6 +74,24 @@ impl Compiler {
                     self.emit_preop(op);
                 }
             }
+            ExprST::Ternary {
+                condition,
+                consequence,
+                alternative,
+            } => {
+                self.compile_expr(*condition);
+
+                let jnt_operand_ptr = self.instructions.len() + 1;
+                self.emit(&codes::JUMP_NOT_TRUE.make_with(&[usize::MAX]));
+                self.compile_expr(*consequence);
+                let jump_operand_ptr = self.instructions.len() + 1;
+                self.emit(&codes::JUMP.make_with(&[usize::MAX]));
+                let jnt_location = self.cur_ip();
+                self.compile_expr(*alternative);
+
+                self.overwrite_u16(jnt_operand_ptr, jnt_location);
+                self.overwrite_u16(jump_operand_ptr, self.cur_ip());
+            }
             node => unimplemented!("Not sure how to compile {:?}", node),
         };
     }
@@ -92,12 +110,17 @@ impl Compiler {
         }
     }
 
+    fn cur_ip(&self) -> u16 {
+        self.instructions.len() as u16
+    }
+
     fn emit(&mut self, bytes: &Bytes) {
         self.instructions.extend_from_slice(bytes);
     }
 
     fn emit_const(&mut self, const_ptr: usize) {
-        self.instructions.extend_from_slice(&codes::CONST.make_with(&[const_ptr]));
+        self.instructions
+            .extend_from_slice(&codes::CONST.make_with(&[const_ptr]));
     }
 
     fn emit_binop(&mut self, binop: BinOp) {
@@ -151,20 +174,49 @@ impl Compiler {
         self.constants.push(constant);
         self.constants.len() - 1
     }
+    
+    fn overwrite(&mut self, at: usize, value: Bytes) {
+        for (i, byte) in value.into_iter().enumerate() {
+            self.instructions[at+i] = byte;
+        }
+    }
+
+    fn overwrite_u16(&mut self, at: usize, value: u16) {
+        let mut bytes = BytesMut::with_capacity(2);
+        bytes.put_u16(value);
+        self.overwrite(at, bytes.freeze())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Bytes};
-    use super::{Compiler, Bytecode};
-    use crate::parser::parser;
+    use super::{Bytecode, Compiler};
     use crate::code::code::codes::*;
+    use crate::code::debug::print_bytes;
     use crate::object::object::Object::*;
+    use crate::parser::parser;
+    use bytes::Bytes;
 
     fn compile(input: &str) -> Bytecode {
         let mut c = Compiler::new();
         c.compile_expr(parser::parse_from_expr(input).unwrap());
         c.finish()
+    }
+
+    fn compile_program(input: &str) -> Bytecode {
+        let wrapped_input = format!("program :any; {}", input);
+        let mut c = Compiler::new();
+        c.compile_program(parser::parse_from_program(&wrapped_input).unwrap());
+        c.finish()
+    }
+
+    fn assert_bytes(result: &Bytecode, bytes: Vec<u8>) {
+        let expected = &Bytes::from(bytes);
+        let actual = &result.instuctions;
+        let equal = expected == actual;
+        if !equal {
+            panic!("\n\nExpected:\n{}\n\nInstead, got:\n{}\n\n", print_bytes(&expected), print_bytes(&actual))
+        }
     }
 
     #[test]
@@ -188,11 +240,11 @@ mod tests {
         let null_code = compile("null");
         assert_eq!(null_code.instuctions, Bytes::from(vec![NULL]));
         assert!(null_code.constants.is_empty());
-        
+
         let negative_int = compile("-1");
         assert_eq!(negative_int.instuctions, Bytes::from(vec![CONST, 0, 0]));
         assert_eq!(negative_int.constants[0], Integer(-1));
-        
+
         let negative_float = compile("-1.0");
         assert_eq!(negative_float.instuctions, Bytes::from(vec![CONST, 0, 0]));
         assert_eq!(negative_float.constants[0], Float(-1.0));
@@ -200,8 +252,42 @@ mod tests {
 
     #[test]
     fn simple_math() {
-        assert_eq!(compile("3 + 4").instuctions, Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, ADD]));
-        assert_eq!(compile("3 - 4").instuctions, Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, SUBTRACT]));
-        assert_eq!(compile("3 + (4 / 5)").instuctions, Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, CONST, 0, 2, DIV, ADD]));
+        assert_eq!(
+            compile("3 + 4").instuctions,
+            Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, ADD])
+        );
+        assert_eq!(
+            compile("3 - 4").instuctions,
+            Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, SUBTRACT])
+        );
+        assert_eq!(
+            compile("3 + (4 / 5)").instuctions,
+            Bytes::from(vec![CONST, 0, 0, CONST, 0, 1, CONST, 0, 2, DIV, ADD])
+        );
+    }
+
+    #[test] #[rustfmt::skip]
+    fn ternary() {
+        // let ternary_code = compile_program("if true ? 1 : 2; 99;");
+        // assert_eq!(ternary_code.instuctions, Bytes::from(vec![
+        assert_bytes(&compile_program("if true ? 1 : 2; 99;"), vec![
+            // 0
+            TRUE,
+            // 1
+            JUMP_NOT_TRUE, 0, 10,
+            // 4
+            CONST, 0, 0,
+            // 7
+            JUMP, 0, 13,
+            // 10
+            CONST, 0, 1,
+            // 13
+            POP,
+            // 14
+            CONST, 0, 2,
+            // 17
+            POP,
+            // 18
+        ]);
     }
 }

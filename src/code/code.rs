@@ -16,6 +16,8 @@ pub mod codes {
 
     // Control
     pub const POP: OpCode = 20;
+    pub const JUMP: OpCode = 21;
+    pub const JUMP_NOT_TRUE: OpCode = 22;
 
     // Binops 200-225
     pub const NULL_COAL: OpCode = 200;
@@ -61,44 +63,46 @@ pub trait Op {
 lazy_static::lazy_static! {
     pub static ref DEFINITIONS: HashMap<u8, Def> = {
         HashMap::from([
-            (codes::CONST,       Def([2, 0], "Push Const")),
-            (codes::NULL,        Def([0, 0], "Push Null")),
-            (codes::TRUE,        Def([0, 0], "Push True")),
-            (codes::FALSE,       Def([0, 0], "Push False")),
+            (codes::CONST,         Def([2, 0], "Push Const")),
+            (codes::NULL,          Def([0, 0], "Push Null")),
+            (codes::TRUE,          Def([0, 0], "Push True")),
+            (codes::FALSE,         Def([0, 0], "Push False")),
 
-            (codes::POP,         Def([0, 0], "Pop")),
+            (codes::POP,           Def([0, 0], "Pop")),
+            (codes::JUMP,          Def([2, 0], "Jump")),
+            (codes::JUMP_NOT_TRUE, Def([2, 0], "JumpIfNotTrue")),
 
-            (codes::NULL_COAL,   Def([0, 0], "OpNullCoal")),
-            (codes::TUPLE_START, Def([0, 0], "OpTupleStart")),
-            (codes::EXP,         Def([0, 0], "OpExp")),
-            (codes::MULT,        Def([0, 0], "OpMult")),
-            (codes::INTER,       Def([0, 0], "OpInter")),
-            (codes::DIV,         Def([0, 0], "OpDiv")),
-            (codes::MOD,         Def([0, 0], "OpMod")),
-            (codes::INT_DIV,     Def([0, 0], "OpIntDiv")),
-            (codes::ADD,         Def([0, 0], "OpAdd")),
-            (codes::SUBTRACT,    Def([0, 0], "OpSubtract")),
-            (codes::WITH,        Def([0, 0], "OpWith")),
-            (codes::LESS,        Def([0, 0], "OpLess")),
-            (codes::UNION,       Def([0, 0], "OpUnion")),
-            (codes::IN,          Def([0, 0], "OpIn")),
-            (codes::NOTIN,       Def([0, 0], "OpNotin")),
-            (codes::SUBSET,      Def([0, 0], "OpSubset")),
-            (codes::LT,          Def([0, 0], "OpLT")),
-            (codes::LTEQ,        Def([0, 0], "OpLTEQ")),
-            (codes::GT,          Def([0, 0], "OpGT")),
-            (codes::GTEQ,        Def([0, 0], "OpGTEQ")),
-            (codes::EQ,          Def([0, 0], "OpEQ")),
-            (codes::NEQ,         Def([0, 0], "OpNEQ")),
-            (codes::AND,         Def([0, 0], "OpAnd")),
-            (codes::OR,          Def([0, 0], "OpOr")),
-            (codes::IMPL,        Def([0, 0], "OpImpl")),
-            (codes::IFF,         Def([0, 0], "OpIff")),
+            (codes::NULL_COAL,     Def([0, 0], "OpNullCoal")),
+            (codes::TUPLE_START,   Def([0, 0], "OpTupleStart")),
+            (codes::EXP,           Def([0, 0], "OpExp")),
+            (codes::MULT,          Def([0, 0], "OpMult")),
+            (codes::INTER,         Def([0, 0], "OpInter")),
+            (codes::DIV,           Def([0, 0], "OpDiv")),
+            (codes::MOD,           Def([0, 0], "OpMod")),
+            (codes::INT_DIV,       Def([0, 0], "OpIntDiv")),
+            (codes::ADD,           Def([0, 0], "OpAdd")),
+            (codes::SUBTRACT,      Def([0, 0], "OpSubtract")),
+            (codes::WITH,          Def([0, 0], "OpWith")),
+            (codes::LESS,          Def([0, 0], "OpLess")),
+            (codes::UNION,         Def([0, 0], "OpUnion")),
+            (codes::IN,            Def([0, 0], "OpIn")),
+            (codes::NOTIN,         Def([0, 0], "OpNotin")),
+            (codes::SUBSET,        Def([0, 0], "OpSubset")),
+            (codes::LT,            Def([0, 0], "OpLT")),
+            (codes::LTEQ,          Def([0, 0], "OpLTEQ")),
+            (codes::GT,            Def([0, 0], "OpGT")),
+            (codes::GTEQ,          Def([0, 0], "OpGTEQ")),
+            (codes::EQ,            Def([0, 0], "OpEQ")),
+            (codes::NEQ,           Def([0, 0], "OpNEQ")),
+            (codes::AND,           Def([0, 0], "OpAnd")),
+            (codes::OR,            Def([0, 0], "OpOr")),
+            (codes::IMPL,          Def([0, 0], "OpImpl")),
+            (codes::IFF,           Def([0, 0], "OpIff")),
 
-            (codes::NEGATE,      Def([0, 0], "OpNegate")),
-            (codes::DYN_VAR,     Def([0, 0], "OpDynVar")),
-            (codes::SIZE,        Def([0, 0], "OpSize")),
-            (codes::NOT,         Def([0, 0], "OpNot")),
+            (codes::NEGATE,        Def([0, 0], "OpNegate")),
+            (codes::DYN_VAR,       Def([0, 0], "OpDynVar")),
+            (codes::SIZE,          Def([0, 0], "OpSize")),
+            (codes::NOT,           Def([0, 0], "OpNot")),
         ])
     };
     static ref EMPTY_SIZES: [usize; 2] = [0, 0];

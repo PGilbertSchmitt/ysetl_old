@@ -21,6 +21,16 @@ impl Object {
             _ => panic!("NOT operation can only be used on boolean values"),
         }
     }
+    
+    pub fn truthy(self) -> bool {
+        match self {
+            Object::True => true,
+            Object::False => false,
+            Object::Null => false,
+            Object::Integer(val) => val != 0,
+            Object::Float(val) => val != 0.0,
+        }
+    }
 }
 
 impl Debug for Object {

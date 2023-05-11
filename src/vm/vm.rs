@@ -96,6 +96,19 @@ impl VM {
                     self.stack.push(val.not());
                 }
 
+                codes::JUMP => {
+                    let ptr = c.get_u16();
+                    c.set_position(ptr as u64);
+                }
+
+                codes::JUMP_NOT_TRUE => {
+                    let ptr = c.get_u16();
+                    let top = self.stack.pop().unwrap();
+                    if !top.truthy() {
+                        c.set_position(ptr as u64);
+                    }
+                }
+
                 code => unimplemented!("Don't know how to execute code {code}"),
             }
         }
@@ -166,5 +179,11 @@ mod tests {
 
         test_input("!true", &False);
         test_input("!(false == true)", &True);
+    }
+
+    #[test]
+    fn ternary() {
+        test_input("if (1 >= 5) ? 1 + 1 : 2 * 2", &Integer(4));
+        test_input("if (1 < 5) ? 1 + 1 : 2 * 2", &Integer(2));
     }
 }
