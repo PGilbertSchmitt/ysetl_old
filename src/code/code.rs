@@ -44,6 +44,12 @@ pub mod codes {
     pub const OR: OpCode = 223;
     pub const IMPL: OpCode = 224;
     pub const IFF: OpCode = 225;
+
+    // Preops 
+    pub const NEGATE: OpCode = 226;
+    pub const DYN_VAR: OpCode = 227;
+    pub const SIZE: OpCode = 228;
+    pub const NOT: OpCode = 229;
 }
 
 pub trait Op {
@@ -88,6 +94,11 @@ lazy_static::lazy_static! {
             (codes::OR,          Def([0, 0], "OpOr")),
             (codes::IMPL,        Def([0, 0], "OpImpl")),
             (codes::IFF,         Def([0, 0], "OpIff")),
+
+            (codes::NEGATE,      Def([0, 0], "OpNegate")),
+            (codes::DYN_VAR,     Def([0, 0], "OpDynVar")),
+            (codes::SIZE,        Def([0, 0], "OpSize")),
+            (codes::NOT,         Def([0, 0], "OpNot")),
         ])
     };
     static ref EMPTY_SIZES: [usize; 2] = [0, 0];

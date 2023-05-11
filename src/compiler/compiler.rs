@@ -1,6 +1,6 @@
 use crate::code::code::{codes, Op};
 use crate::object::object::Object as Obj;
-use crate::parser::ast::{BinOp, ExprST, Program};
+use crate::parser::ast::{BinOp, ExprST, Program, PreOp};
 use bytes::{Bytes, BytesMut};
 
 pub struct Compiler {
@@ -58,6 +58,21 @@ impl Compiler {
                 self.compile_expr(*left);
                 self.compile_expr(*right);
                 self.emit_binop(op);
+            }
+            ExprST::Prefix { op, right } => {
+                let right = *right;
+                // couple of small easy optimizations (since I couldn't figure out how to
+                // smoothly get my parser to do this without conflicting with PreOp::Negate)
+                if let (&PreOp::Negate, &ExprST::Integer(value)) = (&op, &right) {
+                    let const_ptr = self.add_const(Obj::Integer(-value));
+                    self.emit_const(const_ptr);
+                } else if let (&PreOp::Negate, &ExprST::Float(value)) = (&op, &right) {
+                    let const_ptr = self.add_const(Obj::Float(-value));
+                    self.emit_const(const_ptr);
+                } else {
+                    self.compile_expr(right);
+                    self.emit_preop(op);
+                }
             }
             node => unimplemented!("Not sure how to compile {:?}", node),
         };
@@ -117,6 +132,16 @@ impl Compiler {
         self.emit(&op.make());
     }
 
+    fn emit_preop(&mut self, preop: PreOp) {
+        match preop {
+            PreOp::Id => {} // No op, though this may change
+            PreOp::Negate => self.emit(&codes::NEGATE.make()),
+            PreOp::DynVar => self.emit(&codes::DYN_VAR.make()),
+            PreOp::Size => self.emit(&codes::SIZE.make()),
+            PreOp::Not => self.emit(&codes::NOT.make()),
+        }
+    }
+
     // OPTIMIZE: Constants could be added to a hashmap keyed by constant's value, and
     // the value of the hashmap would be an incrementing index which is returned by the
     // `add_const` fn. Before passing constant list to VM, constant map would be converted
@@ -163,6 +188,14 @@ mod tests {
         let null_code = compile("null");
         assert_eq!(null_code.instuctions, Bytes::from(vec![NULL]));
         assert!(null_code.constants.is_empty());
+        
+        let negative_int = compile("-1");
+        assert_eq!(negative_int.instuctions, Bytes::from(vec![CONST, 0, 0]));
+        assert_eq!(negative_int.constants[0], Integer(-1));
+        
+        let negative_float = compile("-1.0");
+        assert_eq!(negative_float.instuctions, Bytes::from(vec![CONST, 0, 0]));
+        assert_eq!(negative_float.constants[0], Float(-1.0));
     }
 
     #[test]

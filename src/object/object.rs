@@ -13,6 +13,16 @@ pub enum Object {
     Float(f64),
 }
 
+impl Object {
+    pub fn not(self) -> Object {
+        match self {
+            Object::True => Object::False,
+            Object::False => Object::True,
+            _ => panic!("NOT operation can only be used on boolean values"),
+        }
+    }
+}
+
 impl Debug for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {

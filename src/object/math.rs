@@ -54,6 +54,14 @@ impl Object {
         }
     }
 
+    pub fn negate(self) -> Object {
+        match self {
+            Integer(value) => Integer(-value),
+            Float(value) => Float(-value),
+            other => panic!("Cannot negate {:?}", other),
+        }
+    }
+
     pub fn math(left: Object, right: Object, op: OpCode) -> Option<Object> {
         match (left, right) {
             (Integer(left), Integer(right)) => {
