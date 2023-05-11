@@ -86,6 +86,16 @@ impl VM {
                         Object::False
                     });
                 }
+                
+                codes::NEGATE => {
+                    let val = self.stack.pop().unwrap();
+                    self.stack.push(val.negate());
+                }
+                codes::NOT => {
+                    let val = self.stack.pop().unwrap();
+                    self.stack.push(val.not());
+                }
+
                 code => unimplemented!("Don't know how to execute code {code}"),
             }
         }
@@ -150,5 +160,11 @@ mod tests {
         test_input("4 <= 4", &True);
         test_input("4 > 2", &True);
         test_input("4 >= 2", &True);
+
+        test_input("-(9)", &Integer(-9));
+        test_input("-(1.0 * 2)", &Float(-2.0));
+
+        test_input("!true", &False);
+        test_input("!(false == true)", &True);
     }
 }
