@@ -57,15 +57,18 @@ impl VM {
                     println!("Last pop: {:?}", self.last_pop);
                 }
 
-                codes::ADD |
-                codes::SUBTRACT |
-                codes::MULT |
-                codes::DIV |
-                codes::INT_DIV |
-                codes::EXP => {
+                codes::ADD
+                | codes::SUBTRACT
+                | codes::MULT
+                | codes::DIV
+                | codes::INT_DIV
+                | codes::EXP
+                | codes::LT
+                | codes::LTEQ
+                | codes::GT
+                | codes::GTEQ => {
                     let (right, left) = self.stack.pop_two();
-                    self.stack
-                        .push(Object::math(left, right, op).unwrap());
+                    self.stack.push(Object::math(left, right, op).unwrap());
                 }
                 codes::EQ => {
                     let (right, left) = self.stack.pop_two();
@@ -95,8 +98,8 @@ impl VM {
 mod tests {
     use super::VM;
     use crate::compiler::compiler::Compiler;
+    use crate::object::object::Object::{*, self};
     use crate::parser::parser;
-    use crate::object::object::Object::*;
 
     fn vm_from(input: &str) -> VM {
         let mut c = Compiler::new();
@@ -104,53 +107,48 @@ mod tests {
         VM::new(c.finish())
     }
 
+    fn test_input(input: &str, result: &Object) {
+        let mut vm = vm_from(input);
+        vm.run();
+        assert_eq!(vm.peek_top(), Some(result), "For input: {}", input);
+    }
+
     #[test]
     fn op_const() {
-        let mut vm = vm_from("99");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Integer(99)));
+        test_input("99", &Integer(99));
     }
 
     #[test]
     fn op_keyword_literals() {
-        let mut vm = vm_from("true");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&True));
+        test_input("true", &True);
+        test_input("false", &False);
+        test_input("null", &Null);
+    }
 
-        let mut vm = vm_from("false");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&False));
+    #[test]
+    fn equivalence() {
+        test_input("true == true", &True);
+        test_input("true == false", &False);
+        test_input("true != true", &False);
+        test_input("true != false", &True);
 
-        let mut vm = vm_from("null");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Null));
+        test_input("3 == 3", &True);
+        test_input("3 == 5", &False);
+        test_input("3 != 3", &False);
+        test_input("3 != 5", &True);
     }
 
     #[test]
     fn math_ops() {
-        let mut vm = vm_from("3 + 4");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Integer(7)));
-        
-        let mut vm = vm_from("3 - 4");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Integer(-1)));
-        
-        let mut vm = vm_from("3.0 * 4");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Float(12.0)));
-        
-        let mut vm = vm_from("4 / 2");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Float(2.0)));
-        
-        let mut vm = vm_from("4 div 2");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Integer(2)));
-        
-        let mut vm = vm_from("4 ** 2");
-        vm.run();
-        assert_eq!(vm.peek_top(), Some(&Integer(16)));
-
+        test_input("3 + 4", &Integer(7));
+        test_input("3 - 4", &Integer(-1));
+        test_input("3.0 * 4", &Float(12.0));
+        test_input("4 / 2", &Float(2.0));
+        test_input("4 div 2", &Integer(2));
+        test_input("4 ** 2", &Integer(16));
+        test_input("4 < 2", &False);
+        test_input("4 <= 4", &True);
+        test_input("4 > 2", &True);
+        test_input("4 >= 2", &True);
     }
 }

@@ -119,7 +119,7 @@ infix_inject      = { dot ~ infix_op }
 
 set_op            = _{ in_ | notin | subset }
 
-compare_op        = _{ lt | lt_eq | gt | gt_eq | dbl_eq | bang_eq }
+compare_op        = _{ lt_eq | lt | gt_eq | gt | dbl_eq | bang_eq }
 
 and_op            = _{ and | dbl_amp }
 
