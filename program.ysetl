@@ -1,3 +1,8 @@
 program :foo;
 
-if (1 >= 5) ? 1 + 1 : 2 * 2;
+case {
+    1 > 5 : 99,
+    1 == 5 : { 199 }, // nr == false, Don't pop (must remove)
+    1 < 5 : { 299; }, // nr == true,  Pop + Null
+    ~ : { 399; }
+};

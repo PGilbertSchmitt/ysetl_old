@@ -1,7 +1,8 @@
+use crate::code::code::codes::JUMP_NOT_TRUE;
 use crate::code::code::{codes, Op};
 use crate::object::object::Object as Obj;
-use crate::parser::ast::{BinOp, ExprST, PreOp, Program};
-use bytes::{Bytes, BytesMut, BufMut};
+use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program};
+use bytes::{BufMut, Bytes, BytesMut};
 
 pub struct Compiler {
     instructions: BytesMut,
@@ -27,8 +28,14 @@ impl Compiler {
     }
 
     pub fn compile_program(&mut self, node: Program) {
-        for expr in node.expressions.into_iter() {
+        self.compile_expr_list(node.expressions);
+    }
+
+    pub fn compile_expr_list(&mut self, exprs: Vec<ExprST>) {
+        for expr in exprs.into_iter() {
             self.compile_expr(expr);
+            // OPTIMIZE: If the last op after the above line runs is something that would only
+            // push a value onto the stack, just remove it and omit the following pop.
             self.emit(&codes::POP.make());
         }
     }
@@ -92,6 +99,10 @@ impl Compiler {
                 self.overwrite_u16(jnt_operand_ptr, jnt_location);
                 self.overwrite_u16(jump_operand_ptr, self.cur_ip());
             }
+            ExprST::Switch { input, cases } => match input {
+                Some(expr) => self.compile_match_switch(*expr, cases),
+                None => self.compile_bool_switch(cases),
+            },
             node => unimplemented!("Not sure how to compile {:?}", node),
         };
     }
@@ -174,10 +185,10 @@ impl Compiler {
         self.constants.push(constant);
         self.constants.len() - 1
     }
-    
+
     fn overwrite(&mut self, at: usize, value: Bytes) {
         for (i, byte) in value.into_iter().enumerate() {
-            self.instructions[at+i] = byte;
+            self.instructions[at + i] = byte;
         }
     }
 
@@ -185,6 +196,64 @@ impl Compiler {
         let mut bytes = BytesMut::with_capacity(2);
         bytes.put_u16(value);
         self.overwrite(at, bytes.freeze())
+    }
+
+    fn compile_match_switch(&mut self, input: ExprST, cases: Vec<Case>) {
+        // Similar to compile_bool_switch, except we'll
+        // 1. compile the input expression
+        // 2. push the result of that expression to a special switch register
+        // 3. After compiling each case condition, push a special jump-not-true
+        // instruction that, instead of popping and comparing, compares directly
+        // against the switch register
+        // 4. After compiling the whole mess, clear the switch register
+    }
+
+    fn compile_bool_switch(&mut self, cases: Vec<Case>) {
+        let mut jmp_operand_ptrs: Vec<usize> = vec![];
+        let mut last_jnt_operand_ptr: Option<usize> = None;
+        
+        for Case {
+            condition,
+            consequence,
+            null_return,
+        } in cases.into_iter() {
+            if let Some(ptr) = last_jnt_operand_ptr {
+                self.overwrite_u16(ptr, self.cur_ip());
+            }
+            
+            // Tilde case causes condition to be None, so we don't add a JUMP_NOT_TRUE
+            let default_case = condition.is_none();
+            condition.map(|expr| {
+                self.compile_expr(*expr)
+            });
+            
+            if !default_case {
+                last_jnt_operand_ptr = Some(self.instructions.len() + 1);
+                self.emit(&JUMP_NOT_TRUE.make_with(&[usize::MAX]));
+                self.compile_expr_list(consequence);
+                self.handle_null_return(null_return);
+                jmp_operand_ptrs.push(self.instructions.len() + 1);
+                self.emit(&codes::JUMP.make_with(&[usize::MAX]));
+            } else {
+                self.compile_expr_list(consequence);
+                self.handle_null_return(null_return);
+                // Any cases that follow the default case will not be compiled because they're unreachable
+                break
+            }
+        }
+
+        let cur_pos = self.cur_ip();
+        for jmp_operand_ptr in jmp_operand_ptrs {
+            self.overwrite_u16(jmp_operand_ptr, cur_pos);
+        }
+    }
+
+    fn handle_null_return(&mut self, null_return: bool) {
+        if null_return {
+            self.emit(&codes::NULL.make());
+        } else {
+            self.instructions.truncate(self.instructions.len() - 1);
+        }
     }
 }
 
@@ -215,7 +284,11 @@ mod tests {
         let actual = &result.instuctions;
         let equal = expected == actual;
         if !equal {
-            panic!("\n\nExpected:\n{}\n\nInstead, got:\n{}\n\n", print_bytes(&expected), print_bytes(&actual))
+            panic!(
+                "\n\nExpected:\n{}\n\nInstead, got:\n{}\n\n",
+                print_bytes(&expected),
+                print_bytes(&actual)
+            )
         }
     }
 
