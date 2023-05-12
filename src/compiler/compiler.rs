@@ -1,5 +1,4 @@
-use crate::code::code::codes::JUMP_NOT_TRUE;
-use crate::code::code::{codes, Op};
+use crate::code::code::{codes, Op, OpCode};
 use crate::object::object::Object as Obj;
 use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program};
 use bytes::{BufMut, Bytes, BytesMut};
@@ -199,38 +198,37 @@ impl Compiler {
         self.overwrite(at, bytes.freeze())
     }
 
-    fn compile_match_switch(&mut self, _input: ExprST, _cases: Vec<Case>) {
-        // Similar to compile_bool_switch, except we'll
-        // 1. compile the input expression
-        // 2. push the result of that expression to a special switch register
-        // 3. After compiling each case condition, push a special jump-not-true
-        // instruction that, instead of popping and comparing, compares directly
-        // against the switch register
-        // 4. After compiling the whole mess, clear the switch register
+    fn compile_match_switch(&mut self, input: ExprST, cases: Vec<Case>) {
+        self.compile_expr(input);
+        self.emit(&codes::PUSH_MATCH.make());
+        self.compile_switch_cases(cases, codes::JUMP_NOT_MATCH);
+        self.emit(&codes::POP_MATCH.make());
     }
 
     fn compile_bool_switch(&mut self, cases: Vec<Case>) {
+        self.compile_switch_cases(cases, codes::JUMP_NOT_TRUE);
+    }
+
+    fn compile_switch_cases(&mut self, cases: Vec<Case>, cond_jump_op: OpCode) {
         let mut jmp_operand_ptrs: Vec<usize> = vec![];
-        let mut last_jnt_operand_ptr: Option<usize> = None;
+        let mut last_cond_jump_operand_ptr: Option<usize> = None;
         
         for Case {
             condition,
             consequence,
             null_return,
         } in cases.into_iter() {
-            if let Some(ptr) = last_jnt_operand_ptr {
+            if let Some(ptr) = last_cond_jump_operand_ptr {
                 self.overwrite_u16(ptr, self.cur_ip());
             }
-            
+
             // Tilde case causes condition to be None, so we don't add a JUMP_NOT_TRUE
             let default_case = condition.is_none();
-            condition.map(|expr| {
-                self.compile_expr(*expr)
-            });
-            
+            condition.map(|expr| self.compile_expr(*expr));
+
             if !default_case {
-                last_jnt_operand_ptr = Some(self.instructions.len() + 1);
-                self.emit(&JUMP_NOT_TRUE.make_with(&[usize::MAX]));
+                last_cond_jump_operand_ptr = Some(self.instructions.len() + 1);
+                self.emit(&cond_jump_op.make_with(&[usize::MAX]));
                 self.compile_expr_list(consequence);
                 self.handle_null_return(null_return);
                 jmp_operand_ptrs.push(self.instructions.len() + 1);
@@ -239,7 +237,7 @@ impl Compiler {
                 self.compile_expr_list(consequence);
                 self.handle_null_return(null_return);
                 // Any cases that follow the default case will not be compiled because they're unreachable
-                break
+                break;
             }
         }
 

@@ -22,6 +22,7 @@ impl Stack for Vec<Object> {
 pub struct VM {
     instructions: Bytes,
     constants: Vec<Object>,
+    match_stack: Vec<Object>,
 
     stack: Vec<Object>,
     last_pop: Object,
@@ -32,6 +33,7 @@ impl VM {
         VM {
             instructions: bytecode.instuctions,
             constants: bytecode.constants,
+            match_stack: Vec::new(),
 
             stack: Vec::with_capacity(STACK_SIZE),
             last_pop: Object::Null,
@@ -103,6 +105,23 @@ impl VM {
                     let ptr = c.get_u16();
                     let top = self.stack.pop().unwrap();
                     if !top.truthy() {
+                        c.set_position(ptr as u64);
+                    }
+                }
+
+                codes::PUSH_MATCH => {
+                    let val = self.stack.pop().unwrap();
+                    self.match_stack.push(val);
+                }
+
+                codes::POP_MATCH => {
+                    self.match_stack.pop();
+                }
+
+                codes::JUMP_NOT_MATCH => {
+                    let ptr = c.get_u16();
+                    let top = self.stack.pop();
+                    if top.as_ref() != self.match_stack.last() {
                         c.set_position(ptr as u64);
                     }
                 }

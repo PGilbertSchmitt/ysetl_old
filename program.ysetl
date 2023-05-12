@@ -1,8 +1,8 @@
 program :foo;
 
-case {
-    1 > 5 : 99,
-    1 == 5 : { 199 }, // nr == false, Don't pop (must remove)
-    1 < 5 : { 299; }, // nr == true,  Pop + Null
-    ~ : { 399; }
-};
+100 * (case (3 + 3) {
+    12 div 2 : 99,
+    10 - 3 : { 199; },
+    ~ : { 399 }
+});
+9999;
