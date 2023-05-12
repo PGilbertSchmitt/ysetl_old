@@ -59,9 +59,10 @@ impl Compiler {
                 let const_ptr = self.add_const(Obj::Float(value));
                 self.emit_const(const_ptr);
             }
-            ExprST::Infix { op, left, right } => {
+            ExprST::Infix { op, mut left, mut right } => {
                 // Need special jump logic when op is AND/OR/IMPL so that right side is only
                 // evaluated in correct circumstances.
+                if let BinOp::GT | BinOp::GTEQ = op { (left, right) = (right, left) }
                 self.compile_expr(*left);
                 self.compile_expr(*right);
                 self.emit_binop(op);
@@ -154,8 +155,8 @@ impl Compiler {
             BinOp::Subset => codes::SUBSET,
             BinOp::LT => codes::LT,
             BinOp::LTEQ => codes::LTEQ,
-            BinOp::GT => codes::GT,
-            BinOp::GTEQ => codes::GTEQ,
+            BinOp::GT => codes::LT,
+            BinOp::GTEQ => codes::LTEQ,
             BinOp::EQ => codes::EQ,
             BinOp::NEQ => codes::NEQ,
             BinOp::And => codes::AND,
@@ -198,7 +199,7 @@ impl Compiler {
         self.overwrite(at, bytes.freeze())
     }
 
-    fn compile_match_switch(&mut self, input: ExprST, cases: Vec<Case>) {
+    fn compile_match_switch(&mut self, _input: ExprST, _cases: Vec<Case>) {
         // Similar to compile_bool_switch, except we'll
         // 1. compile the input expression
         // 2. push the result of that expression to a special switch register

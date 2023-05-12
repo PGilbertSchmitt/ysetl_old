@@ -53,7 +53,7 @@ impl VM {
                 codes::FALSE => self.stack.push(Object::False),
 
                 codes::POP => {
-                    self.last_pop = self.stack.pop().unwrap();
+                    self.last_pop = self.stack.pop().expect("Called pop on empty stack");
                     println!("Last pop: {:?}", self.last_pop);
                 }
 
@@ -64,9 +64,7 @@ impl VM {
                 | codes::INT_DIV
                 | codes::EXP
                 | codes::LT
-                | codes::LTEQ
-                | codes::GT
-                | codes::GTEQ => {
+                | codes::LTEQ => {
                     let (right, left) = self.stack.pop_two();
                     self.stack.push(Object::math(left, right, op).unwrap());
                 }

@@ -38,14 +38,12 @@ pub mod codes {
     pub const SUBSET: OpCode = 215;
     pub const LT: OpCode = 216;
     pub const LTEQ: OpCode = 217;
-    pub const GT: OpCode = 218;
-    pub const GTEQ: OpCode = 219;
-    pub const EQ: OpCode = 220;
-    pub const NEQ: OpCode = 221;
-    pub const AND: OpCode = 222;
-    pub const OR: OpCode = 223;
-    pub const IMPL: OpCode = 224;
-    pub const IFF: OpCode = 225;
+    pub const EQ: OpCode = 218;
+    pub const NEQ: OpCode = 219;
+    pub const AND: OpCode = 220;
+    pub const OR: OpCode = 221;
+    pub const IMPL: OpCode = 222;
+    pub const IFF: OpCode = 223;
 
     // Preops 
     pub const NEGATE: OpCode = 226;
@@ -90,8 +88,6 @@ lazy_static::lazy_static! {
             (codes::SUBSET,        Def([0, 0], "OpSubset")),
             (codes::LT,            Def([0, 0], "OpLT")),
             (codes::LTEQ,          Def([0, 0], "OpLTEQ")),
-            (codes::GT,            Def([0, 0], "OpGT")),
-            (codes::GTEQ,          Def([0, 0], "OpGTEQ")),
             (codes::EQ,            Def([0, 0], "OpEQ")),
             (codes::NEQ,           Def([0, 0], "OpNEQ")),
             (codes::AND,           Def([0, 0], "OpAnd")),

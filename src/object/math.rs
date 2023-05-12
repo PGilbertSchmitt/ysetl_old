@@ -16,8 +16,6 @@ fn int_math(left: i64, right: i64, op: OpCode) -> Object {
         codes::EXP => Integer(left.pow(right as u32)),
         codes::LT => if left < right { True } else { False },
         codes::LTEQ => if left <= right { True } else { False },
-        codes::GT => if left > right { True } else { False },
-        codes::GTEQ => if left >= right { True } else { False },
         _ => unimplemented!(),
     }
 }
@@ -39,8 +37,6 @@ fn float_math(left: f64, right: f64, op: OpCode) -> Object {
         codes::EXP => Float(left.powf(right)),
         codes::LT => if left < right { True } else { False },
         codes::LTEQ => if left <= right { True } else { False },
-        codes::GT => if left > right { True } else { False },
-        codes::GTEQ => if left >= right { True } else { False },
         _ => unimplemented!(),
     }
 }
