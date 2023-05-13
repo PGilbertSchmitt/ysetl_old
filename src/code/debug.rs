@@ -1,5 +1,5 @@
 use bytes::{Bytes, Buf};
-use super::code::{DEFINITIONS, Def};
+use super::code::lookup;
 
 pub fn print_bytes(bytes: &Bytes) -> String {
     let len = bytes.len();
@@ -16,10 +16,7 @@ pub fn print_bytes(bytes: &Bytes) -> String {
 
 fn print_op(buf: &mut dyn Buf, pos: usize) -> String {
     let code_byte = buf.get_u8();
-    let &Def(sizes, name) = DEFINITIONS.get(&code_byte).expect(&format!(
-        "Error reading bytes, found unexpected op byte {}",
-        &code_byte
-    ));
+    let (sizes, name) = lookup(code_byte).unwrap();
 
     let mut output = format!("{:>4}: ", pos.to_string());
     output.push_str(name);

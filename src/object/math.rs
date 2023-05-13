@@ -1,42 +1,42 @@
 use super::object::Object::{self, *};
-use crate::code::code::{codes, OpCode};
+use crate::code::code::{self, OpCode};
 
-fn int_math(left: i64, right: i64, op: OpCode) -> Object {
+fn int_math(left: i64, right: i64, op: u8) -> Object {
     match op {
-        codes::ADD => Integer(left + right),
-        codes::SUBTRACT => Integer(left - right),
-        codes::MULT => Integer(left * right),
-        codes::DIV => Float(left as f64 / right as f64),
-        codes::INT_DIV => {
+        code::Add::VAL => Integer(left + right),
+        code::Subtract::VAL => Integer(left - right),
+        code::Mult::VAL => Integer(left * right),
+        code::Div::VAL => Float(left as f64 / right as f64),
+        code::IntDiv::VAL => {
             if right == 0 {
                 panic!("Divide by zero error")
             };
             Integer(left / right)
         }
-        codes::EXP => Integer(left.pow(right as u32)),
-        codes::LT => if left < right { True } else { False },
-        codes::LTEQ => if left <= right { True } else { False },
+        code::Exp::VAL => Integer(left.pow(right as u32)),
+        code::Lt::VAL => if left < right { True } else { False },
+        code::Lteq::VAL => if left <= right { True } else { False },
         _ => unimplemented!(),
     }
 }
 
-fn float_math(left: f64, right: f64, op: OpCode) -> Object {
+fn float_math(left: f64, right: f64, op: u8) -> Object {
     match op {
-        codes::ADD => Float(left + right),
-        codes::SUBTRACT => Float(left - right),
-        codes::MULT => Float(left * right),
-        codes::DIV => {
+        code::Add::VAL => Float(left + right),
+        code::Subtract::VAL => Float(left - right),
+        code::Mult::VAL => Float(left * right),
+        code::Div::VAL => {
             if right == 0.0 {
                 panic!("Divide by zero error");
             }
             Float(left / right)
         }
-        codes::INT_DIV => {
+        code::IntDiv::VAL => {
             panic!("Operands for `div` must both be integers");
         }
-        codes::EXP => Float(left.powf(right)),
-        codes::LT => if left < right { True } else { False },
-        codes::LTEQ => if left <= right { True } else { False },
+        code::Exp::VAL => Float(left.powf(right)),
+        code::Lt::VAL => if left < right { True } else { False },
+        code::Lteq::VAL => if left <= right { True } else { False },
         _ => unimplemented!(),
     }
 }
@@ -58,7 +58,7 @@ impl Object {
         }
     }
 
-    pub fn math(left: Object, right: Object, op: OpCode) -> Option<Object> {
+    pub fn math(left: Object, right: Object, op: u8) -> Option<Object> {
         match (left, right) {
             (Integer(left), Integer(right)) => {
                 return Some(int_math(left, right, op));

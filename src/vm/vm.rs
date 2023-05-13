@@ -1,7 +1,7 @@
 use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
-use crate::code::code::codes;
+use crate::code::code::{self, OpCode, OpCodeU16};
 use crate::compiler::compiler::Bytecode;
 use crate::object::object::Object;
 
@@ -49,28 +49,28 @@ impl VM {
         while c.has_remaining() {
             let op = c.get_u8();
             match op {
-                codes::CONST => self.stack.push(self.constants[c.get_u16() as usize]),
-                codes::NULL => self.stack.push(Object::Null),
-                codes::TRUE => self.stack.push(Object::True),
-                codes::FALSE => self.stack.push(Object::False),
+                code::Const::VAL => self.stack.push(self.constants[c.get_u16() as usize]),
+                code::Null::VAL => self.stack.push(Object::Null),
+                code::True::VAL => self.stack.push(Object::True),
+                code::False::VAL => self.stack.push(Object::False),
 
-                codes::POP => {
+                code::Pop::VAL => {
                     self.last_pop = self.stack.pop().expect("Called pop on empty stack");
                     println!("Last pop: {:?}", self.last_pop);
                 }
 
-                codes::ADD
-                | codes::SUBTRACT
-                | codes::MULT
-                | codes::DIV
-                | codes::INT_DIV
-                | codes::EXP
-                | codes::LT
-                | codes::LTEQ => {
+                code::Add::VAL
+                | code::Subtract::VAL
+                | code::Mult::VAL
+                | code::Div::VAL
+                | code::IntDiv::VAL
+                | code::Exp::VAL
+                | code::Lt::VAL
+                | code::Lteq::VAL => {
                     let (right, left) = self.stack.pop_two();
                     self.stack.push(Object::math(left, right, op).unwrap());
                 }
-                codes::EQ => {
+                code::Eq::VAL => {
                     let (right, left) = self.stack.pop_two();
                     self.stack.push(if left == right {
                         Object::True
@@ -78,7 +78,7 @@ impl VM {
                         Object::False
                     });
                 }
-                codes::NEQ => {
+                code::Neq::VAL => {
                     let (right, left) = self.stack.pop_two();
                     self.stack.push(if left != right {
                         Object::True
@@ -87,21 +87,21 @@ impl VM {
                     });
                 }
                 
-                codes::NEGATE => {
+                code::Negate::VAL => {
                     let val = self.stack.pop().unwrap();
                     self.stack.push(val.negate());
                 }
-                codes::NOT => {
+                code::Not::VAL => {
                     let val = self.stack.pop().unwrap();
                     self.stack.push(val.not());
                 }
 
-                codes::JUMP => {
+                code::Jump::VAL => {
                     let ptr = c.get_u16();
                     c.set_position(ptr as u64);
                 }
 
-                codes::JUMP_NOT_TRUE => {
+                code::JumpNotTrue::VAL => {
                     let ptr = c.get_u16();
                     let top = self.stack.pop().unwrap();
                     if !top.truthy() {
@@ -109,16 +109,16 @@ impl VM {
                     }
                 }
 
-                codes::PUSH_MATCH => {
+                code::PushMatch::VAL => {
                     let val = self.stack.pop().unwrap();
                     self.match_stack.push(val);
                 }
 
-                codes::POP_MATCH => {
+                code::PopMatch::VAL => {
                     self.match_stack.pop();
                 }
 
-                codes::JUMP_NOT_MATCH => {
+                code::JumpNotMatch::VAL => {
                     let ptr = c.get_u16();
                     let top = self.stack.pop();
                     if top.as_ref() != self.match_stack.last() {

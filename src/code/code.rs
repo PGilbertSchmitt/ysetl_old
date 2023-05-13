@@ -1,163 +1,304 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use std::collections::HashMap;
 
-pub type OpCode = u8;
-
-pub struct Def(pub [usize; 2], pub &'static str);
-
-pub mod codes {
-    use super::OpCode;
-
-    // Values
-    pub const CONST: OpCode = 0;
-    pub const NULL: OpCode = 1;
-    pub const TRUE: OpCode = 2;
-    pub const FALSE: OpCode = 3;
-
-    // Control
-    pub const POP: OpCode = 20;
-    pub const PUSH_MATCH: OpCode = 21;
-    pub const POP_MATCH: OpCode = 22;
-    pub const JUMP: OpCode = 23;
-    pub const JUMP_NOT_TRUE: OpCode = 24;
-    pub const JUMP_NOT_MATCH: OpCode = 25;
-
-    // Binops 200-225
-    pub const NULL_COAL: OpCode = 200;
-    pub const TUPLE_START: OpCode = 201;
-    pub const EXP: OpCode = 202;
-    pub const MULT: OpCode = 203;
-    pub const INTER: OpCode = 204;
-    pub const DIV: OpCode = 205;
-    pub const MOD: OpCode = 206;
-    pub const INT_DIV: OpCode = 207;
-    pub const ADD: OpCode = 208;
-    pub const SUBTRACT: OpCode = 209;
-    pub const WITH: OpCode = 210;
-    pub const LESS: OpCode = 211;
-    pub const UNION: OpCode = 212;
-    pub const IN: OpCode = 213;
-    pub const NOTIN: OpCode = 214;
-    pub const SUBSET: OpCode = 215;
-    pub const LT: OpCode = 216;
-    pub const LTEQ: OpCode = 217;
-    pub const EQ: OpCode = 218;
-    pub const NEQ: OpCode = 219;
-    pub const AND: OpCode = 220;
-    pub const OR: OpCode = 221;
-    pub const IMPL: OpCode = 222;
-    pub const IFF: OpCode = 223;
-
-    // Preops 
-    pub const NEGATE: OpCode = 226;
-    pub const DYN_VAR: OpCode = 227;
-    pub const SIZE: OpCode = 228;
-    pub const NOT: OpCode = 229;
-}
-
-pub trait Op {
-    fn lookup(&self) -> &'static Def;
+pub trait OpCodeMake {
     fn make(self) -> Bytes;
-    fn make_with(self, operands: &[usize]) -> Bytes;
+    const OPERAND_COUNTS: &'static [usize] = &[];
 }
 
-lazy_static::lazy_static! {
-    pub static ref DEFINITIONS: HashMap<u8, Def> = {
-        HashMap::from([
-            (codes::CONST,            Def([2, 0], "PushConst")),
-            (codes::NULL,             Def([0, 0], "PushNull")),
-            (codes::TRUE,             Def([0, 0], "PushTrue")),
-            (codes::FALSE,            Def([0, 0], "PushFalse")),
-
-            (codes::POP,              Def([0, 0], "Pop")),
-            (codes::POP_MATCH,        Def([0, 0], "PopMatch")),
-            (codes::JUMP,             Def([2, 0], "Jump")),
-            (codes::JUMP_NOT_TRUE,    Def([2, 0], "JumpIfNotTrue")),
-            (codes::PUSH_MATCH,       Def([0, 0], "PushMatch")),
-            (codes::JUMP_NOT_MATCH,   Def([2, 0], "JumpIfNotMatch")),
-
-            (codes::NULL_COAL,        Def([0, 0], "OpNullCoal")),
-            (codes::TUPLE_START,      Def([0, 0], "OpTupleStart")),
-            (codes::EXP,              Def([0, 0], "OpExp")),
-            (codes::MULT,             Def([0, 0], "OpMult")),
-            (codes::INTER,            Def([0, 0], "OpInter")),
-            (codes::DIV,              Def([0, 0], "OpDiv")),
-            (codes::MOD,              Def([0, 0], "OpMod")),
-            (codes::INT_DIV,          Def([0, 0], "OpIntDiv")),
-            (codes::ADD,              Def([0, 0], "OpAdd")),
-            (codes::SUBTRACT,         Def([0, 0], "OpSubtract")),
-            (codes::WITH,             Def([0, 0], "OpWith")),
-            (codes::LESS,             Def([0, 0], "OpLess")),
-            (codes::UNION,            Def([0, 0], "OpUnion")),
-            (codes::IN,               Def([0, 0], "OpIn")),
-            (codes::NOTIN,            Def([0, 0], "OpNotin")),
-            (codes::SUBSET,           Def([0, 0], "OpSubset")),
-            (codes::LT,               Def([0, 0], "OpLT")),
-            (codes::LTEQ,             Def([0, 0], "OpLTEQ")),
-            (codes::EQ,               Def([0, 0], "OpEQ")),
-            (codes::NEQ,              Def([0, 0], "OpNEQ")),
-            (codes::AND,              Def([0, 0], "OpAnd")),
-            (codes::OR,               Def([0, 0], "OpOr")),
-            (codes::IMPL,             Def([0, 0], "OpImpl")),
-            (codes::IFF,              Def([0, 0], "OpIff")),
-
-            (codes::NEGATE,           Def([0, 0], "OpNegate")),
-            (codes::DYN_VAR,          Def([0, 0], "OpDynVar")),
-            (codes::SIZE,             Def([0, 0], "OpSize")),
-            (codes::NOT,              Def([0, 0], "OpNot")),
-        ])
-    };
-    static ref EMPTY_SIZES: [usize; 2] = [0, 0];
+pub trait OpCodeMakeWithU16 {
+    fn make(self, operand: u16) -> Bytes;
+    const OPERAND_COUNTS: &'static [usize] = &[2];
 }
 
-impl Op for OpCode {
-    /** Lookup the name and sizes of operands for an opcode */
-    fn lookup(&self) -> &'static Def {
-        DEFINITIONS.get(self).unwrap()
-    }
+/** Used to implement opcodes with no operands */
+pub trait OpCode {
+    const VAL: u8;
+}
 
+/** Used to implement opcodes which take a single 2-byte operand */
+pub trait OpCodeU16 {
+    const VAL: u8;
+}
+
+impl<T: Sized + OpCode> OpCodeMake for T {
     fn make(self) -> Bytes {
-        let &Def(sizes, _) = DEFINITIONS.get(&self).unwrap();
-        if sizes != [0, 0] {
-            panic!("Cannot use make for op codes with arguments")
-        };
         let mut bytes = BytesMut::with_capacity(1);
-        bytes.put_u8(self);
+        bytes.put_u8(Self::VAL);
         bytes.freeze()
     }
+}
 
-    fn make_with(self, operands: &[usize]) -> Bytes {
-        let &Def(sizes, _) = DEFINITIONS.get(&self).unwrap();
-        let ins_len: usize = 1 + sizes.iter().sum::<usize>();
-        let mut instruction = BytesMut::with_capacity(ins_len);
-        instruction.put_u8(self);
+impl<T: Sized + OpCodeU16> OpCodeMakeWithU16 for T {
+    fn make(self, operand: u16) -> Bytes {
+        let mut bytes = BytesMut::with_capacity(1);
+        bytes.put_u8(Self::VAL);
+        bytes.put_u16(operand);
+        bytes.freeze()
+    }
+}
 
-        for (i, operand) in operands.iter().enumerate() {
-            let size = sizes[i];
-            match size {
-                0 => panic!("Too many operands provided to opcode {:?}", &self),
-                1 => instruction.put_u8(*operand as u8),
-                2 => instruction.put_u16(*operand as u16),
-                _ => panic!("Can't add operand with size {size}"),
-            }
+#[derive(Debug)]
+pub struct Const;
+impl OpCodeU16 for Const {
+    const VAL: u8 = 0;
+}
+
+#[derive(Debug)]
+pub struct Null;
+impl OpCode for Null {
+    const VAL: u8 = 1;
+}
+
+#[derive(Debug)]
+pub struct True;
+impl OpCode for True {
+    const VAL: u8 =  2;
+}
+#[derive(Debug)]
+pub struct False;
+impl OpCode for False {
+    const VAL: u8 =  3;
+}
+#[derive(Debug)]
+pub struct SetGVar;
+impl OpCodeU16 for SetGVar {
+    const VAL: u8 =  4;
+}
+#[derive(Debug)]
+pub struct GetGVar;
+impl OpCodeU16 for GetGVar {
+    const VAL: u8 =  5;
+}
+
+#[derive(Debug)]
+pub struct Pop;
+impl OpCode for Pop {
+    const VAL: u8 = 20;
+}
+
+#[derive(Debug)]
+pub struct PushMatch;
+impl OpCode for PushMatch {
+    const VAL: u8 = 21;
+}
+
+#[derive(Debug)]
+pub struct PopMatch;
+impl OpCode for PopMatch {
+    const VAL: u8 = 22;
+}
+
+#[derive(Debug)]
+pub struct Jump;
+impl OpCodeU16 for Jump {
+    const VAL: u8 = 23;
+}
+
+#[derive(Debug)]
+pub struct JumpNotTrue;
+impl OpCodeU16 for JumpNotTrue {
+    const VAL: u8 = 24;
+}
+
+#[derive(Debug)]
+pub struct JumpNotMatch;
+impl OpCodeU16 for JumpNotMatch {
+    const VAL: u8 = 25;
+}
+
+#[derive(Debug)]
+pub struct NullCoal;
+impl OpCode for NullCoal {
+    const VAL: u8 = 200;
+}
+
+#[derive(Debug)]
+pub struct TupleStart;
+impl OpCode for TupleStart {
+    const VAL: u8 = 201;
+}
+
+#[derive(Debug)]
+pub struct Exp;
+impl OpCode for Exp {
+    const VAL: u8 = 202;
+}
+
+#[derive(Debug)]
+pub struct Mult;
+impl OpCode for Mult {
+    const VAL: u8 = 203;
+}
+
+#[derive(Debug)]
+pub struct Inter;
+impl OpCode for Inter {
+    const VAL: u8 = 204;
+}
+
+#[derive(Debug)]
+pub struct Div;
+impl OpCode for Div {
+    const VAL: u8 = 205;
+}
+
+#[derive(Debug)]
+pub struct Mod;
+impl OpCode for Mod {
+    const VAL: u8 = 206;
+}
+
+#[derive(Debug)]
+pub struct IntDiv;
+impl OpCode for IntDiv {
+    const VAL: u8 = 207;
+}
+
+#[derive(Debug)]
+pub struct Add;
+impl OpCode for Add {
+    const VAL: u8 = 208;
+}
+
+#[derive(Debug)]
+pub struct Subtract;
+impl OpCode for Subtract {
+    const VAL: u8 = 209;
+}
+
+#[derive(Debug)]
+pub struct With;
+impl OpCode for With {
+    const VAL: u8 = 210;
+}
+
+#[derive(Debug)]
+pub struct Less;
+impl OpCode for Less {
+    const VAL: u8 = 211;
+}
+
+#[derive(Debug)]
+pub struct Union;
+impl OpCode for Union {
+    const VAL: u8 = 212;
+}
+
+#[derive(Debug)]
+pub struct In;
+impl OpCode for In {
+    const VAL: u8 = 213;
+}
+
+#[derive(Debug)]
+pub struct Notin;
+impl OpCode for Notin {
+    const VAL: u8 = 214;
+}
+
+#[derive(Debug)]
+pub struct Subset;
+impl OpCode for Subset {
+    const VAL: u8 = 215;
+}
+
+#[derive(Debug)]
+pub struct Lt;
+impl OpCode for Lt {
+    const VAL: u8 = 216;
+}
+
+#[derive(Debug)]
+pub struct Lteq;
+impl OpCode for Lteq {
+    const VAL: u8 = 217;
+}
+
+#[derive(Debug)]
+pub struct Eq;
+impl OpCode for Eq {
+    const VAL: u8 = 218;
+}
+
+#[derive(Debug)]
+pub struct Neq;
+impl OpCode for Neq {
+    const VAL: u8 = 219;
+}
+
+#[derive(Debug)]
+pub struct And;
+impl OpCode for And {
+    const VAL: u8 = 220;
+}
+
+#[derive(Debug)]
+pub struct Or;
+impl OpCode for Or {
+    const VAL: u8 = 221;
+}
+
+#[derive(Debug)]
+pub struct Impl;
+impl OpCode for Impl {
+    const VAL: u8 = 222;
+}
+
+#[derive(Debug)]
+pub struct Iff;
+impl OpCode for Iff {
+    const VAL: u8 = 223;
+}
+
+#[derive(Debug)]
+pub struct Negate;
+impl OpCode for Negate {
+    const VAL: u8 = 226;
+}
+
+#[derive(Debug)]
+pub struct DynVar;
+impl OpCode for DynVar {
+    const VAL: u8 = 227;
+}
+
+#[derive(Debug)]
+pub struct Size;
+impl OpCode for Size {
+    const VAL: u8 = 228;
+}
+
+#[derive(Debug)]
+pub struct Not;
+impl OpCode for Not {
+    const VAL: u8 = 229;
+}
+
+
+pub fn lookup(byte: u8) -> Option<(&'static [usize], &'static str)> {
+    match byte {
+        Const::VAL => Some((Const::OPERAND_COUNTS, "Const")),
+        Add::VAL =>   Some((Add::OPERAND_COUNTS, "Add")),
+        Pop::VAL =>   Some((Pop::OPERAND_COUNTS, "Pop")),
+        other => {
+            println!("!!{}", other);
+            None
         }
-
-        instruction.freeze()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{codes, Op};
+    use super::*;
 
     #[test]
     fn op_const() {
-        assert_eq!(&codes::CONST.make_with(&[5])[..], [0, 0, 5]);
-        assert_eq!(&codes::CONST.make_with(&[258])[..], [0, 1, 2]);
+        assert_eq!(Const.make(5)[..], [Const::VAL, 0, 5]);
+        assert_eq!(Const.make(258)[..], [Const::VAL, 1, 2]);
     }
 
     #[test]
     fn op_add() {
-        assert_eq!(&codes::ADD.make()[..], [codes::ADD]);
+        assert_eq!(Add.make()[..], [Add::VAL]);
     }
 }
