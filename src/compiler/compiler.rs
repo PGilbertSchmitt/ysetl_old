@@ -1,5 +1,5 @@
 use crate::code::code::{self, OpCodeMake, OpCodeMakeWithU16};
-use crate::object::object::Object as Obj;
+use crate::object::object::{BaseObject};
 use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS};
 use bytes::{BufMut, Bytes, BytesMut};
 
@@ -7,18 +7,20 @@ use super::symbols::SymbolMap;
 
 pub struct Compiler {
     instructions: BytesMut,
-    constants: Vec<Obj>,    
+    constants: Vec<BaseObject>,    
     symbol_map: SymbolMap,
 }
 
 pub struct BytecodeRef<'a> {
     pub instructions: &'a BytesMut,
-    pub constants: &'a Vec<Obj>,
+    pub constants: &'a Vec<BaseObject>,
+    pub global_count: usize,
 }
 
 pub struct Bytecode {
     pub instuctions: Bytes,
-    pub constants: Vec<Obj>,
+    pub constants: Vec<BaseObject>,
+    pub global_count: usize,
 }
 
 impl Compiler {
@@ -55,16 +57,16 @@ impl Compiler {
                 self.emit(&code::False.make());
             }
             ExprST::Integer(value) => {
-                let const_ptr = self.add_const(Obj::Integer(value));
+                let const_ptr = self.add_const(BaseObject::Integer(value));
                 self.emit_const(const_ptr);
             }
             ExprST::Float(value) => {
-                let const_ptr = self.add_const(Obj::Float(value));
+                let const_ptr = self.add_const(BaseObject::Float(value));
                 self.emit_const(const_ptr);
             }
-            ExprST::Ident(_name) => {
-                // let sym = self.symbol_map.lookup(name).expect("'{}' is undefined in current scope");
-
+            ExprST::Ident(name) => {
+                let i = self.symbol_map.lookup(name).expect("'{}' is undefined in current scope").index;
+                self.emit(&code::GetGVar.make(i));
             }
             ExprST::Infix { op, mut left, mut right } => {
                 // Need special jump logic when op is AND/OR/IMPL so that right side is only
@@ -79,10 +81,10 @@ impl Compiler {
                 // couple of small easy optimizations (since I couldn't figure out how to
                 // smoothly get my parser to do this without conflicting with PreOp::Negate)
                 if let (&PreOp::Negate, &ExprST::Integer(value)) = (&op, &right) {
-                    let const_ptr = self.add_const(Obj::Integer(-value));
+                    let const_ptr = self.add_const(BaseObject::Integer(-value));
                     self.emit_const(const_ptr);
                 } else if let (&PreOp::Negate, &ExprST::Float(value)) = (&op, &right) {
-                    let const_ptr = self.add_const(Obj::Float(-value));
+                    let const_ptr = self.add_const(BaseObject::Float(-value));
                     self.emit_const(const_ptr);
                 } else {
                     self.compile_expr(right);
@@ -129,6 +131,7 @@ impl Compiler {
         BytecodeRef {
             instructions: &self.instructions,
             constants: &self.constants,
+            global_count: self.symbol_map.size(),
         }
     }
 
@@ -136,6 +139,7 @@ impl Compiler {
         Bytecode {
             instuctions: self.instructions.freeze(),
             constants: self.constants,
+            global_count: self.symbol_map.size(),
         }
     }
 
@@ -200,7 +204,7 @@ impl Compiler {
     // `add_const` fn. Before passing constant list to VM, constant map would be converted
     // to a vector. However, I think this may result in few space saves since programs
     // with many many similar constants aren't common.
-    fn add_const(&mut self, constant: Obj) -> usize {
+    fn add_const(&mut self, constant: BaseObject) -> usize {
         self.constants.push(constant);
         self.constants.len() - 1
     }
@@ -280,7 +284,7 @@ mod tests {
     use super::{Bytecode, Compiler};
     use crate::code::code::{self, OpCode, OpCodeU16};
     use crate::code::debug::print_bytes;
-    use crate::object::object::Object::*;
+    use crate::object::object::BaseObject::*;
     use crate::parser::parser;
     use bytes::Bytes;
 

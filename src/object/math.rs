@@ -1,7 +1,14 @@
-use super::object::Object::{self, *};
+use std::rc::Rc;
+
+use super::object::BaseObject::{self, *};
 use crate::code::code::{self, OpCode};
 
-fn int_math(left: i64, right: i64, op: u8) -> Object {
+pub trait ObjectMath {
+    fn to_float(&self) -> Option<Self> where Self: Sized;
+    fn negate(&self) -> Option<Self> where Self: Sized;
+}
+
+fn int_math(left: i64, right: i64, op: u8) -> BaseObject {
     match op {
         code::Add::VAL => Integer(left + right),
         code::Subtract::VAL => Integer(left - right),
@@ -20,7 +27,7 @@ fn int_math(left: i64, right: i64, op: u8) -> Object {
     }
 }
 
-fn float_math(left: f64, right: f64, op: u8) -> Object {
+fn float_math(left: f64, right: f64, op: u8) -> BaseObject {
     match op {
         code::Add::VAL => Float(left + right),
         code::Subtract::VAL => Float(left - right),
@@ -41,35 +48,35 @@ fn float_math(left: f64, right: f64, op: u8) -> Object {
     }
 }
 
-impl Object {
-    fn to_float(&self) -> Option<Object> {
+impl ObjectMath for BaseObject {
+    fn to_float(&self) -> Option<BaseObject> {
         match self {
-            Float(_) => Some(*self),
+            Float(val) => Some(Float(*val)),
             Integer(val) => Some(Float(*val as f64)),
             _ => None,
         }
     }
 
-    pub fn negate(self) -> Object {
+    fn negate(&self) -> Option<BaseObject> {
         match self {
-            Integer(value) => Integer(-value),
-            Float(value) => Float(-value),
+            Integer(value) => Some(Integer(-value)),
+            Float(value) => Some(Float(-value)),
             other => panic!("Cannot negate {:?}", other),
         }
     }
+}
 
-    pub fn math(left: Object, right: Object, op: u8) -> Option<Object> {
-        match (left, right) {
-            (Integer(left), Integer(right)) => {
-                return Some(int_math(left, right, op));
-            }
-            (Integer(_), Float(_)) | (Float(_), Integer(_)) | (Float(_), Float(_)) => {
-                let (Some(Float(left_val)), Some(Float(right_val))) = (left.to_float(), right.to_float()) else {
-                    return None
-                };
-                return Some(float_math(left_val, right_val, op));
-            }
-            _ => None,
+pub fn math_op(left: Rc<BaseObject>, right: Rc<BaseObject>, op: u8) -> Option<BaseObject> {
+    match (left.as_ref(), right.as_ref()) {
+        (&Integer(left), &Integer(right)) => {
+            return Some(int_math(left, right, op));
         }
+        (&Integer(_), &Float(_)) | (&Float(_), &Integer(_)) | (&Float(_), &Float(_)) => {
+            let (Some(Float(left_val)), Some(Float(right_val))) = (left.to_float(), right.to_float()) else {
+                return None
+            };
+            return Some(float_math(left_val, right_val, op));
+        }
+        _ => None,
     }
 }

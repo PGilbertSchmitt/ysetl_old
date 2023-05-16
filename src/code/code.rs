@@ -274,19 +274,6 @@ impl OpCode for Not {
     const VAL: u8 = 229;
 }
 
-
-pub fn lookup(byte: u8) -> Option<(&'static [usize], &'static str)> {
-    match byte {
-        Const::VAL => Some((Const::OPERAND_COUNTS, "Const")),
-        Add::VAL =>   Some((Add::OPERAND_COUNTS, "Add")),
-        Pop::VAL =>   Some((Pop::OPERAND_COUNTS, "Pop")),
-        other => {
-            println!("!!{}", other);
-            None
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -38,4 +38,8 @@ impl SymbolMap {
     pub fn lookup(&self, id: &str) -> Option<&Symbol> {
         self.store.get(id)
     }
+
+    pub fn size(&self) -> usize {
+        self.size as usize
+    }
 }
