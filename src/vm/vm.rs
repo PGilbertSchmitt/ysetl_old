@@ -160,73 +160,73 @@ impl VM {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::VM;
-//     use crate::compiler::compiler::Compiler;
-//     use crate::object::object::{ObjectOps, BaseObject::{self, *}};
-//     use crate::parser::parser;
+#[cfg(test)]
+mod tests {
+    use super::VM;
+    use crate::compiler::compiler::Compiler;
+    use crate::object::object::{BaseObject::{self, *}};
+    use crate::parser::parser;
 
-//     fn vm_from(input: &str) -> VM {
-//         let mut c = Compiler::new();
-//         c.compile_expr(parser::parse_from_expr(input).unwrap());
-//         VM::new(c.finish())
-//     }
+    fn vm_from(input: &str) -> VM {
+        let mut c = Compiler::new();
+        c.compile_expr(parser::parse_from_expr(input).unwrap());
+        VM::new(c.finish())
+    }
 
-//     fn test_input(input: &str, result: &BaseObject) {
-//         let mut vm = vm_from(input);
-//         vm.run();
-//         assert!(vm.peek_top() == Some(&result.reference()), "For input: {}", input);
-//     }
+    fn test_input(input: &str, result: BaseObject) {
+        let mut vm = vm_from(input);
+        vm.run();
+        assert!(vm.peek_top() == Some(&result.wrap()), "For input: {}", input);
+    }
 
-//     #[test]
-//     fn op_const() {
-//         test_input("99", &Integer(99));
-//     }
+    #[test]
+    fn op_const() {
+        test_input("99", Integer(99));
+    }
 
-//     #[test]
-//     fn op_keyword_literals() {
-//         test_input("true", &True);
-//         test_input("false", &False);
-//         test_input("null", &Null);
-//     }
+    #[test]
+    fn op_keyword_literals() {
+        test_input("true", True);
+        test_input("false", False);
+        test_input("null", Null);
+    }
 
-//     #[test]
-//     fn equivalence() {
-//         test_input("true == true", &True);
-//         test_input("true == false", &False);
-//         test_input("true != true", &False);
-//         test_input("true != false", &True);
+    #[test]
+    fn equivalence() {
+        test_input("true == true", True);
+        test_input("true == false", False);
+        test_input("true != true", False);
+        test_input("true != false", True);
 
-//         test_input("3 == 3", &True);
-//         test_input("3 == 5", &False);
-//         test_input("3 != 3", &False);
-//         test_input("3 != 5", &True);
-//     }
+        test_input("3 == 3", True);
+        test_input("3 == 5", False);
+        test_input("3 != 3", False);
+        test_input("3 != 5", True);
+    }
 
-//     #[test]
-//     fn math_ops() {
-//         test_input("3 + 4", &Integer(7));
-//         test_input("3 - 4", &Integer(-1));
-//         test_input("3.0 * 4", &Float(12.0));
-//         test_input("4 / 2", &Float(2.0));
-//         test_input("4 div 2", &Integer(2));
-//         test_input("4 ** 2", &Integer(16));
-//         test_input("4 < 2", &False);
-//         test_input("4 <= 4", &True);
-//         test_input("4 > 2", &True);
-//         test_input("4 >= 2", &True);
+    #[test]
+    fn math_ops() {
+        test_input("3 + 4", Integer(7));
+        test_input("3 - 4", Integer(-1));
+        test_input("3.0 * 4", Float(12.0));
+        test_input("4 / 2", Float(2.0));
+        test_input("4 div 2", Integer(2));
+        test_input("4 ** 2", Integer(16));
+        test_input("4 < 2", False);
+        test_input("4 <= 4", True);
+        test_input("4 > 2", True);
+        test_input("4 >= 2", True);
 
-//         test_input("-(9)", &Integer(-9));
-//         test_input("-(1.0 * 2)", &Float(-2.0));
+        test_input("-(9)", Integer(-9));
+        test_input("-(1.0 * 2)", Float(-2.0));
 
-//         test_input("!true", &False);
-//         test_input("!(false == true)", &True);
-//     }
+        test_input("!true", False);
+        test_input("!(false == true)", True);
+    }
 
-//     #[test]
-//     fn ternary() {
-//         test_input("if (1 >= 5) ? 1 + 1 : 2 * 2", &Integer(4));
-//         test_input("if (1 < 5) ? 1 + 1 : 2 * 2", &Integer(2));
-//     }
-// }
+    #[test]
+    fn ternary() {
+        test_input("if (1 >= 5) ? 1 + 1 : 2 * 2", Integer(4));
+        test_input("if (1 < 5) ? 1 + 1 : 2 * 2", Integer(2));
+    }
+}
