@@ -1,6 +1,6 @@
 use crate::code::code::{self, OpCodeMake, OpCodeMakeWithU16};
 use crate::object::object::{BaseObject};
-use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS};
+use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS, Former};
 use bytes::{BufMut, Bytes, BytesMut};
 
 use super::symbols::SymbolMap;
@@ -33,15 +33,15 @@ impl Compiler {
     }
 
     pub fn compile_program(&mut self, node: Program) {
-        self.compile_expr_list(node.expressions);
+        self.compile_expr_list(node.expressions, true);
     }
 
-    pub fn compile_expr_list(&mut self, exprs: Vec<ExprST>) {
+    pub fn compile_expr_list(&mut self, exprs: Vec<ExprST>, with_pop: bool) {
         for expr in exprs.into_iter() {
             self.compile_expr(expr);
             // OPTIMIZE: If the last op after the above line runs is something that would only
             // push a value onto the stack, just remove it and omit the following pop.
-            self.emit(&code::Pop.make());
+            if with_pop { self.emit(&code::Pop.make()); }
         }
     }
 
@@ -67,6 +67,16 @@ impl Compiler {
             ExprST::Ident(name) => {
                 let i = self.symbol_map.lookup(name).expect("'{}' is undefined in current scope").index;
                 self.emit(&code::GetGVar.make(i));
+            }
+            ExprST::String(value) => {
+                let const_ptr = self.add_const(BaseObject::String(value.to_owned()));
+                self.emit_const(const_ptr);
+            }
+            ExprST::TupleLiteral(former) => {
+                self.compile_former(former, code::Tuple, code::TupleRn);
+            }
+            ExprST::SetLiteral(former) => {
+                self.compile_former(former, code::Set, code::SetRn);
             }
             ExprST::Infix { op, mut left, mut right } => {
                 // Need special jump logic when op is AND/OR/IMPL so that right side is only
@@ -252,12 +262,12 @@ impl Compiler {
             if !default_case {
                 last_cond_jump_operand_ptr = Some(self.instructions.len() + 1);
                 self.emit(&jump_bytes);
-                self.compile_expr_list(consequence);
+                self.compile_expr_list(consequence, true);
                 self.handle_null_return(null_return);
                 jmp_operand_ptrs.push(self.instructions.len() + 1);
                 self.emit(&code::Jump.make(u16::MAX));
             } else {
-                self.compile_expr_list(consequence);
+                self.compile_expr_list(consequence, true);
                 self.handle_null_return(null_return);
                 // Any cases that follow the default case will not be compiled because they're unreachable
                 break;
@@ -277,12 +287,35 @@ impl Compiler {
             self.instructions.truncate(self.instructions.len() - 1);
         }
     }
+
+    fn compile_former(
+        &mut self,
+        former: Former,
+        lit_builder: impl OpCodeMakeWithU16,
+        range_builder: impl OpCodeMakeWithU16,
+    ) {
+        match former {
+            Former::Literal(expressions) => {
+                let size = expressions.len() as u16;
+                self.compile_expr_list(expressions, false);
+                self.emit(&lit_builder.make(size));
+            }
+            Former::Range { range_start, range_step, range_end } => {
+                let parts = if range_step.is_none() { 2 } else { 3 };
+                range_step.map(|step| self.compile_expr(*step));
+                self.compile_expr(*range_end);
+                self.compile_expr(*range_start);
+                self.emit(&range_builder.make(parts));
+            }
+            _ => unimplemented!()
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Bytecode, Compiler};
-    use crate::code::code::{self, OpCode, OpCodeU16};
+    use crate::code::code::{self, OpCode};
     use crate::code::debug::print_bytes;
     use crate::object::object::BaseObject::*;
     use crate::parser::parser;

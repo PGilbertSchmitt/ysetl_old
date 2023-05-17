@@ -1,10 +1,10 @@
 use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
-use crate::code::code::{self, OpCode, OpCodeU16};
+use crate::code::code::{self, OpCode};
 use crate::compiler::compiler::Bytecode;
-use crate::object::object::{Object, ObjectOps, BaseObject};
 use crate::object::math::{math_op, ObjectMath};
+use crate::object::object::{BaseObject, Object, ObjectOps};
 
 const STACK_SIZE: usize = 2048;
 
@@ -22,7 +22,7 @@ impl Stack for Vec<Object> {
 #[derive(Debug)]
 pub struct VM {
     instructions: Bytes,
-    
+
     constants: Vec<Object>,
     globals: Vec<Object>,
     match_stack: Vec<Object>,
@@ -35,7 +35,7 @@ impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
         VM {
             instructions: bytecode.instuctions,
-            
+
             constants: bytecode.constants.into_iter().map(|bo| bo.wrap()).collect(),
             globals: Vec::with_capacity(bytecode.global_count),
             match_stack: Vec::new(),
@@ -50,7 +50,10 @@ impl VM {
     }
 
     pub fn run(&mut self) -> Object {
-        let mut c = Cursor::new(self.instructions.as_ref());
+        // Can probably remove the need to clone the instructions if I separate the instructions
+        // from the mutable state struct, and apply all mut methods to that struct, passing in
+        // the instructions
+        let mut c = Cursor::new(self.instructions.clone());
         while c.has_remaining() {
             let op = c.get_u8();
             match op {
@@ -58,7 +61,7 @@ impl VM {
                     let ptr = c.get_u16();
                     let const_obj = self.constants[ptr as usize].reference();
                     self.stack.push(const_obj);
-                },
+                }
                 code::Null::VAL => self.stack.push(BaseObject::Null.wrap()),
                 code::True::VAL => self.stack.push(BaseObject::True.wrap()),
                 code::False::VAL => self.stack.push(BaseObject::False.wrap()),
@@ -69,7 +72,7 @@ impl VM {
                 }
 
                 code::SetGVar::VAL => {
-                    let ptr = c.get_u16() as usize; 
+                    let ptr = c.get_u16() as usize;
                     // To do this in a straighforward manner, we would pop the stack, insert a reference
                     // to the globals vector, and push it back onto the stack, so we just leave it in the
                     // stack and reference it from there using `last` instead.
@@ -82,7 +85,33 @@ impl VM {
                     let global = self.globals.get(ptr).unwrap().reference();
                     self.stack.push(global);
                 }
-                
+
+                code::Tuple::VAL => {
+                    let size = c.get_u16() as usize;
+                    let drain_start: usize = self.stack.len() - size;
+                    let elements: Vec<Object> = self.stack.drain(drain_start..).collect();
+                    self.stack.push(BaseObject::Tuple(elements).wrap());
+                }
+
+                code::Set::VAL => {
+                    let size = c.get_u16() as usize;
+                    let drain_start: usize = self.stack.len() - size;
+                    let elements: Vec<Object> = self.stack.drain(drain_start..).collect();
+                    self.stack.push(BaseObject::Set(elements).wrap());
+                }
+
+                code::TupleRn::VAL => {
+                    let size = c.get_u16();
+                    let elements = self.calculate_range(size);
+                    self.stack.push(BaseObject::Tuple(elements).wrap());
+                }
+
+                code::SetRn::VAL => {
+                    let size = c.get_u16();
+                    let elements = self.calculate_range(size);
+                    self.stack.push(BaseObject::Set(elements).wrap());
+                }
+
                 code::Jump::VAL => {
                     let ptr = c.get_u16();
                     c.set_position(ptr as u64);
@@ -142,7 +171,7 @@ impl VM {
                         BaseObject::False.wrap()
                     });
                 }
-                
+
                 code::Negate::VAL => {
                     let val = self.stack.pop().unwrap();
                     self.stack.push(val.inner.negate().unwrap().wrap());
@@ -154,9 +183,52 @@ impl VM {
 
                 code => unimplemented!("Don't know how to execute code {code}"),
             }
-        };
+        }
 
         self.last_pop.reference()
+    }
+
+    fn calculate_range(&mut self, size: u16) -> Vec<Object> {
+        let start = self.stack.pop().unwrap();
+        let end = self.stack.pop().unwrap();
+        let step_opt = match size {
+            2 => None,
+            // Unwrapping then rewrapping looks dumb, but the pop must fail if it's None
+            3 => Some(self.stack.pop().unwrap()),
+            _ => unreachable!(),
+        };
+        if let (&BaseObject::Integer(start), &BaseObject::Integer(end)) =
+            (start.inner.as_ref(), end.inner.as_ref())
+        {
+            let step = step_opt.map_or(1, |v| {
+                if let &BaseObject::Integer(v) = v.inner.as_ref() {
+                    v - start
+                } else {
+                    panic!("Range elements must evaluate to integers");
+                }
+            });
+
+            // These would all iterate forever. Like in the original ISetL, this instead evaluates
+            // to an empty range. Initially, I would have prefered this to fail, but I can see it
+            // being handy to check if a range is valid if the resulting collection is truthy.
+            if step == 0 || (step > 0 && start > end) || (step < 0 && start < end) {
+                return vec![];
+            }
+
+            let mut values: Vec<Object> = Vec::new();
+            let mut x = start;
+            loop {
+                if (step > 0 && x > end) || (step < 0 && x < end) {
+                    break;
+                }
+                values.push(BaseObject::Integer(x).wrap());
+                x += step;
+            }
+
+            values
+        } else {
+            panic!("Range elements must evaluate to integers");
+        }
     }
 }
 
@@ -164,7 +236,7 @@ impl VM {
 mod tests {
     use super::VM;
     use crate::compiler::compiler::Compiler;
-    use crate::object::object::{BaseObject::{self, *}};
+    use crate::object::object::BaseObject::{self, *};
     use crate::parser::parser;
 
     fn vm_from(input: &str) -> VM {
@@ -176,7 +248,11 @@ mod tests {
     fn test_input(input: &str, result: BaseObject) {
         let mut vm = vm_from(input);
         vm.run();
-        assert!(vm.peek_top() == Some(&result.wrap()), "For input: {}", input);
+        assert!(
+            vm.peek_top() == Some(&result.wrap()),
+            "For input: {}",
+            input
+        );
     }
 
     #[test]

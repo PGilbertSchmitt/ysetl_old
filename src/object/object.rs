@@ -3,6 +3,7 @@ use std::{fmt::Debug, rc::Rc};
 pub trait ObjectOps {
     fn not(&self) -> Self;
     fn truthy(&self) -> bool;
+    fn is_int(&self) -> bool;
 }
 
 // This could be a little inefficient for space since some consts
@@ -16,6 +17,9 @@ pub enum BaseObject {
     False,
     Integer(i64),
     Float(f64),
+    String(String),
+    Tuple(Vec<Object>),
+    Set(Vec<Object>),
 }
 
 impl BaseObject {
@@ -40,7 +44,17 @@ impl ObjectOps for BaseObject {
             BaseObject::False => false,
             BaseObject::Null => false,
             BaseObject::Integer(val) => *val != 0,
-            BaseObject::Float(val) => *val != 0.0,
+            BaseObject::Float(val) => *val != 0.0,  
+            BaseObject::String(str) => str.len() > 0,
+            BaseObject::Tuple(els) => els.len() > 0,
+            BaseObject::Set(els) => els.len() > 0,
+        }
+    }
+
+    fn is_int(&self) -> bool {
+        match self {
+            BaseObject::Integer(_) => true,
+            _ => false,
         }
     }
 }
@@ -53,6 +67,9 @@ impl Debug for BaseObject {
             Self::False => f.write_str("false"),
             Self::Integer(val) => f.debug_tuple("int").field(val).finish(),
             Self::Float(val) => f.debug_tuple("float").field(val).finish(),
+            Self::String(str) => f.debug_tuple("str").field(str).finish(),
+            Self::Tuple(els) => f.debug_tuple("tup").field(els).finish(),
+            Self::Set(els) => f.debug_tuple("set").field(els).finish(),
         }
     }
 }
@@ -62,7 +79,6 @@ pub struct Object {
 }
 
 impl Object {
-
     /** Create a new reference to the same inner base object */
     pub fn reference(&self) -> Object {
         Object { inner: self.inner.clone() }
@@ -76,6 +92,10 @@ impl ObjectOps for Object {
 
     fn truthy(&self) -> bool {
         self.inner.truthy()
+    }
+
+    fn is_int(&self) -> bool {
+        self.inner.is_int()
     }
 }
 
