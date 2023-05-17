@@ -13,12 +13,16 @@ pub fn lookup(byte: u8) -> Option<(&'static [usize], &'static str)> {
         Set::VAL => Some((Set::OPERAND_COUNTS, "Set")),
         TupleRn::VAL => Some((TupleRn::OPERAND_COUNTS, "TupleRn")),
         SetRn::VAL => Some((SetRn::OPERAND_COUNTS, "SetRn")),
+        
         Pop::VAL => Some((Pop::OPERAND_COUNTS, "Pop")),
         PushMatch::VAL => Some((PushMatch::OPERAND_COUNTS, "PushMatch")),
         PopMatch::VAL => Some((PopMatch::OPERAND_COUNTS, "PopMatch")),
         Jump::VAL => Some((Jump::OPERAND_COUNTS, "Jump")),
         JumpNotTrue::VAL => Some((JumpNotTrue::OPERAND_COUNTS, "JumpNotTrue")),
         JumpNotMatch::VAL => Some((JumpNotMatch::OPERAND_COUNTS, "JumpNotMatch")),
+
+        Index::VAL => Some((Index::OPERAND_COUNTS, "Index")),
+
         NullCoal::VAL => Some((NullCoal::OPERAND_COUNTS, "NullCoal")),
         TupleStart::VAL => Some((TupleStart::OPERAND_COUNTS, "TupleStart")),
         Exp::VAL => Some((Exp::OPERAND_COUNTS, "Exp")),

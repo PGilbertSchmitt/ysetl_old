@@ -87,6 +87,7 @@ pub enum Former<'a> {
 #[derive(Debug)]
 pub enum Postfix<'a> {
     Call(Vec<ExprST<'a>>),
+    Index(Box<ExprST<'a>>),
     Range(Option<Box<ExprST<'a>>>, Option<Box<ExprST<'a>>>),
     Pick(Vec<ExprST<'a>>),
 }

@@ -1,6 +1,6 @@
 use crate::code::code::{self, OpCodeMake, OpCodeMakeWithU16};
 use crate::object::object::{BaseObject};
-use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS, Former};
+use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS, Former, Postfix};
 use bytes::{BufMut, Bytes, BytesMut};
 
 use super::symbols::SymbolMap;
@@ -99,6 +99,16 @@ impl Compiler {
                 } else {
                     self.compile_expr(right);
                     self.emit_preop(op);
+                }
+            }
+            ExprST::Postfix { left, selector } => {
+                self.compile_expr(*left);
+                match selector {
+                    Postfix::Index(index) => {
+                        self.compile_expr(*index);
+                        self.emit(&code::Index.make());
+                    }
+                    _ => unimplemented!()
                 }
             }
             ExprST::Ternary {

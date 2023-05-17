@@ -3,7 +3,8 @@ use std::{fmt::Debug, rc::Rc};
 pub trait ObjectOps {
     fn not(&self) -> Self;
     fn truthy(&self) -> bool;
-    fn is_int(&self) -> bool;
+    fn is_int(&self) -> bool;   
+    fn get_index(&self, index: &Object) -> Object;
 }
 
 // This could be a little inefficient for space since some consts
@@ -57,6 +58,38 @@ impl ObjectOps for BaseObject {
             _ => false,
         }
     }
+
+    fn get_index(&self, index: &Object) -> Object {
+        match self {
+            Self::String(str) => {
+                if let &&BaseObject::Integer(val) = &index.inner.as_ref() {
+                    let char = str.chars().nth(val as usize).map_or_else(|| {
+                        panic!("{} is out of index for string {}", val, str);
+                    }, |ch| {
+                        ch.to_string()
+                    });
+                    BaseObject::String(char).wrap()
+                } else {
+                    panic!("Cannot index into string with {:?}", index)
+                }
+            }
+            Self::Tuple(elements) => {
+                if let &&BaseObject::Integer(val) = &index.inner.as_ref() {
+                    elements.get(val as usize).map_or_else(|| {
+                        panic!("{} is out of index for vector", val);
+                    }, |ch| {
+                        ch.reference()
+                    })
+                } else {
+                    panic!("Cannot index into string with {:?}", index)
+                }
+            }
+            // Self::Set(elements) => {
+
+            // }
+            _ => unimplemented!()
+        }
+    }
 }
 
 impl Debug for BaseObject {
@@ -96,6 +129,10 @@ impl ObjectOps for Object {
 
     fn is_int(&self) -> bool {
         self.inner.is_int()
+    }
+
+    fn get_index(&self, index: &Object) -> Object {
+        self.inner.get_index(index)
     }
 }
 

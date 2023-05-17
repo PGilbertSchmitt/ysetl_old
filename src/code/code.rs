@@ -17,6 +17,10 @@ PopMatch     |  22
 Jump         |  23
 JumpNotTrue  |  24
 JumpNotMatch |  25
+Index        | 100
+Range        | 101
+Pick         | 102
+Call         | 103
 NullCoal     | 200
 TupleStart   | 201
 Exp          | 202
@@ -195,6 +199,13 @@ pub struct JumpNotMatch;
 impl OpCodeU16 for JumpNotMatch {}
 impl OpCode for JumpNotMatch {
     const VAL: u8 = 25;
+}
+
+#[derive(Debug)]
+pub struct Index;
+impl OpCodeNone for Index {}
+impl OpCode for Index {
+    const VAL: u8 = 100;
 }
 
 #[derive(Debug)]

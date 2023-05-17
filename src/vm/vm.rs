@@ -142,6 +142,12 @@ impl VM {
                     }
                 }
 
+                code::Index::VAL => {
+                    let index = self.stack.pop().unwrap();
+                    let target = self.stack.pop().unwrap();
+                    self.stack.push(target.get_index(&index))
+                }
+
                 code::Add::VAL
                 | code::Subtract::VAL
                 | code::Mult::VAL
