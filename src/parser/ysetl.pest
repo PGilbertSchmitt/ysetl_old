@@ -227,11 +227,13 @@ range = _{ range_start ~ dbl_dot ~ range_end }
 
 fn_call = { l_paren ~ expr_list? ~ r_paren }
 
-range_call = { l_paren ~ range ~ r_paren }
+index_call = { l_brack ~ expr ~ r_brack }
+
+range_call = { l_brack ~ range ~ r_brack }
 
 pick_call = { l_brace ~ expr_list ~ r_brace }
 
-selector = _{ fn_call | range_call | pick_call }
+selector = _{ fn_call | range_call | index_call | pick_call }
 
 // Bound
 

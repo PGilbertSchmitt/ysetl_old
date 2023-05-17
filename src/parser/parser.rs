@@ -56,6 +56,7 @@ lazy_static::lazy_static! {
                 Op::prefix(Rule::bang))
             .op(Op::postfix(Rule::fn_call) |
                 Op::postfix(Rule::range_call) |
+                Op::postfix(Rule::index_call) |
                 Op::postfix(Rule::pick_call))
     };
 }
@@ -455,6 +456,11 @@ fn parse_range_expr<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
     Postfix::Range(range_start, range_end)
 }
 
+fn parse_index_expr<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
+    let index = postfix.into_inner().next().unwrap();
+    Postfix::Index(Box::new(parse_expr(index).unwrap()))
+}
+
 fn parse_pick_expr<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
     Postfix::Pick(unwrap_expr_list(postfix))
 }
@@ -463,6 +469,7 @@ fn parse_selector<'a>(postfix: Pair<'a, Rule>) -> Postfix<'a> {
     match postfix.as_rule() {
         Rule::fn_call => parse_call_expr(postfix),
         Rule::range_call => parse_range_expr(postfix),
+        Rule::index_call => parse_index_expr(postfix),
         Rule::pick_call => parse_pick_expr(postfix),
         rule => unreachable!(
             "parse_expr expected postfix expression, received {:?}",

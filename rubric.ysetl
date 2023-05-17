@@ -31,7 +31,7 @@ aaaa %foo bbbb %bar cccc;
 
 -not !#@lotta_unaries;
 
-foo(1,a){a+c}(1..);
+foo(1,a){a+c}[1..];
 
 a := b(d) := c;
 
@@ -51,6 +51,6 @@ case (foo > bar) {
     ~ : e
 };
 
-choose x in X | x > 5;
-exists x=f(y), a=g(b) | x != a, x > 5;
-forall z in Z | g(z);
+// choose x in X | x > 5;
+// exists x=f(y), a=g(b) | x != a, x > 5;
+// forall z in Z | g(z);
