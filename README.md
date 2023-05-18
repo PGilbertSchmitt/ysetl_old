@@ -15,7 +15,7 @@ While my personal implementation isn't designed to be a hammer for every nail, I
 
 ## Name
 
-There's nothing special about the name **YSETL**, and I'm not breaking any new ground here. I just wanted something with **-SETL** in the name, and "Y" is funny because truly, I have to ask myself: "y r u doin this??". 'The answer, unsurprisingly, is `¯\_( ͡° ͜ʖ ͡°)_/¯`
+There's nothing special about the name **YSETL**, and I'm not breaking any new ground here. I just wanted something with **-SETL** in the name, and "Y" is funny because truly, I have to ask myself: _"y r u doin this??"_. The answer, unsurprisingly, is `¯\_( ͡° ͜ʖ ͡°)_/¯`
 
 ---
 
