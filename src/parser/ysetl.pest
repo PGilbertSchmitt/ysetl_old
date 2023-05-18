@@ -40,7 +40,7 @@ where = @{ "where" ~ __ }
 // Non-operator Symbols
 // Some of these are technically operators, but it's better
 // if they don't produce tokens because they're part of a
-// more complex operator, like `percent` or `bollocks`
+// more complex operator, like `percent` or `assign`
 
 semicolon = _{ ";" }
 colon = _{ ":" }
@@ -51,6 +51,7 @@ percent = _{ "%" }
 pipe = _{ "|" }
 dot = _{ "." }
 qst = _{ "?" }
+assign = _{ "=" }
 
 l_brace = _{ "{" }
 r_brace = _{ "}" }
@@ -59,7 +60,6 @@ r_paren = _{ ")" }
 l_brack = _{ "[" }
 r_brack = _{ "]" }
 
-bollocks = _{ ":=" }
 dbl_slash = _{ "//" }
 dbl_dot = _{ ".." }
 arrow = _{ "=>" }
@@ -198,7 +198,7 @@ primary = _{
 
 bin_expr = { prefix_op* ~ primary ~ selector* ~ (bin_op ~ prefix_op* ~ primary ~ selector*)* }
 
-assignment_expr = { lhs ~ bollocks ~ expr }
+assignment_expr = { lhs ~ assign ~ expr }
 
 select_expr = { select_op ~ iterator }
 
