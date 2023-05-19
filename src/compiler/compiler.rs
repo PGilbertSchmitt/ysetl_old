@@ -6,9 +6,11 @@ use bytes::{BufMut, Bytes, BytesMut};
 use super::symbols::SymbolMap;
 
 pub struct Compiler {
-    instructions: BytesMut,
     constants: Vec<BaseObject>,    
     symbol_map: SymbolMap,
+
+    scopes: Vec<ScopeCtx>,
+    scope_ptr: usize,
 }
 
 pub struct BytecodeRef<'a> {
@@ -23,13 +25,30 @@ pub struct Bytecode {
     pub global_count: usize,
 }
 
+struct ScopeCtx {
+    pub instructions: BytesMut,
+}
+
 impl Compiler {
     pub fn new() -> Self {
+        let global_scope = ScopeCtx { instructions: BytesMut::new() };
+
         Compiler {
-            instructions: BytesMut::new(),
             constants: vec![],
             symbol_map: SymbolMap::new(),
+
+            scopes: vec![global_scope],
+            scope_ptr: 0,
         }
+    }
+
+    fn current_instructions(&self) -> &BytesMut {
+        let top_scope = self.scopes.last().expect("Can't find any scopes");
+        &top_scope.instructions
+    }
+
+    fn ins_len(&self) -> usize {
+        self.current_instructions().len()
     }
 
     pub fn compile_program(&mut self, node: Program) {
@@ -118,10 +137,10 @@ impl Compiler {
             } => {
                 self.compile_expr(*condition);
 
-                let jnt_operand_ptr = self.instructions.len() + 1;
+                let jnt_operand_ptr = self.current_instructions().len() + 1;
                 self.emit(&code::JumpNotTrue.make(u16::MAX));
                 self.compile_expr(*consequence);
-                let jump_operand_ptr = self.instructions.len() + 1;
+                let jump_operand_ptr = self.current_instructions().len() + 1;
                 self.emit(&code::Jump.make(u16::MAX));
                 let jnt_location = self.cur_ip();
                 self.compile_expr(*alternative);
@@ -149,32 +168,36 @@ impl Compiler {
 
     pub fn check(&self) -> BytecodeRef {
         BytecodeRef {
-            instructions: &self.instructions,
+            instructions: self.current_instructions(),
             constants: &self.constants,
             global_count: self.symbol_map.size(),
         }
     }
 
     pub fn finish(self) -> Bytecode {
+        let mut scopes = self.scopes;
+        let instructions = scopes.pop().unwrap().instructions;
         Bytecode {
-            instuctions: self.instructions.freeze(),
+            instuctions: instructions.freeze(),
             constants: self.constants,
             global_count: self.symbol_map.size(),
         }
     }
 
     fn cur_ip(&self) -> u16 {
-        self.instructions.len() as u16
+        self.current_instructions().len() as u16
     }
 
     fn emit(&mut self, bytes: &Bytes) {
-        self.instructions.extend_from_slice(bytes);
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .instructions
+            .extend_from_slice(bytes);
     }
 
     fn emit_const(&mut self, const_ptr: usize) {
-        self.instructions
-            // .extend_from_slice(&code::Const.make_with(&[const_ptr]));
-            .extend_from_slice(&code::Const.make(const_ptr as u16))
+        self.emit(&code::Const.make(const_ptr as u16))
     }
 
     fn emit_binop(&mut self, binop: BinOp) {
@@ -230,8 +253,9 @@ impl Compiler {
     }
 
     fn overwrite(&mut self, at: usize, value: Bytes) {
+        let top_scope = self.scopes.last_mut().unwrap();
         for (i, byte) in value.into_iter().enumerate() {
-            self.instructions[at + i] = byte;
+            top_scope.instructions[at + i] = byte;
         }
     }
 
@@ -252,9 +276,10 @@ impl Compiler {
         self.compile_switch_cases(cases, code::JumpNotTrue.make(u16::MAX));
     }
 
-    fn compile_switch_cases(&mut self, cases: Vec<Case>, jump_bytes: Bytes) {
+    fn compile_switch_cases(&mut self, cases: Vec<Case>, cond_jump_bytes: Bytes) {
         let mut jmp_operand_ptrs: Vec<usize> = vec![];
         let mut last_cond_jump_operand_ptr: Option<usize> = None;
+        let mut has_default = false;
         
         for Case {
             condition,
@@ -270,18 +295,27 @@ impl Compiler {
             condition.map(|expr| self.compile_expr(*expr));
 
             if !default_case {
-                last_cond_jump_operand_ptr = Some(self.instructions.len() + 1);
-                self.emit(&jump_bytes);
+                last_cond_jump_operand_ptr = Some(self.ins_len() + 1);
+                self.emit(&cond_jump_bytes);
                 self.compile_expr_list(consequence, true);
                 self.handle_null_return(null_return);
-                jmp_operand_ptrs.push(self.instructions.len() + 1);
+                jmp_operand_ptrs.push(self.ins_len() + 1);
                 self.emit(&code::Jump.make(u16::MAX));
             } else {
                 self.compile_expr_list(consequence, true);
                 self.handle_null_return(null_return);
                 // Any cases that follow the default case will not be compiled because they're unreachable
+                has_default = true;
                 break;
             }
+        }
+
+        if !has_default {
+            // If no default case was provided, we jump to one that pushes null to the stack
+            if let Some(ptr) = last_cond_jump_operand_ptr {
+                self.overwrite_u16(ptr, self.cur_ip());
+            }
+            self.emit(&code::Null.make());
         }
 
         let cur_pos = self.cur_ip();
@@ -294,7 +328,12 @@ impl Compiler {
         if null_return {
             self.emit(&code::Null.make());
         } else {
-            self.instructions.truncate(self.instructions.len() - 1);
+            let len = self.ins_len() - 1;
+            self.scopes
+                .last_mut()
+                .unwrap()
+                .instructions
+                .truncate(len);
         }
     }
 
@@ -406,8 +445,6 @@ mod tests {
 
     #[test] #[rustfmt::skip]
     fn ternary() {
-        // let ternary_code = compile_program("if true ? 1 : 2; 99;");
-        // assert_eq!(ternary_code.instuctions, Bytes::from(vec![
         assert_bytes(&compile_program("if true ? 1 : 2; 99;"), vec![
             // 0
             code::True::VAL,

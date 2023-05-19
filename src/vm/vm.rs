@@ -2,6 +2,7 @@ use bytes::{Buf, Bytes};
 use std::io::Cursor;
 
 use crate::code::code::{self, OpCode};
+use crate::code::debug::lookup;
 use crate::compiler::compiler::Bytecode;
 use crate::object::math::{math_op, ObjectMath};
 use crate::object::object::{BaseObject, Object, ObjectOps};
@@ -157,8 +158,12 @@ impl VM {
                 | code::Lt::VAL
                 | code::Lteq::VAL => {
                     let (right, left) = self.stack.pop_two();
-                    let result = math_op(left.inner, right.inner, op).unwrap();
-                    self.stack.push(result.wrap());
+                    let result = math_op(&left.inner, &right.inner, op);
+                    // There's probably a better way to do all this
+                    if result.is_none() {
+                        panic!("Could not perform {} on types {:?} and {:?}", lookup(op).unwrap().1, left.inner, right.inner)
+                    }
+                    self.stack.push(result.unwrap().wrap());
                 }
                 code::Eq::VAL => {
                     let (right, left) = self.stack.pop_two();
