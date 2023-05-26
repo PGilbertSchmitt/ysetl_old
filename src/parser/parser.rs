@@ -603,6 +603,13 @@ fn parse_select_expr(input: Pair<Rule>) -> ExprResult {
     })
 }
 
+fn parse_return_expr(input: Pair<Rule>) -> ExprResult {
+    let mut parts = input.into_inner();
+    parts.next(); // Captured "return"
+    let expr = parts.next().unwrap();
+    Ok(ExprST::Return(Box::new(parse_expr(expr).unwrap())))
+}
+
 fn parse_expr(input: Pair<Rule>) -> ExprResult {
     match input.as_rule() {
         // There will be non-binop expressions that go here
@@ -611,6 +618,7 @@ fn parse_expr(input: Pair<Rule>) -> ExprResult {
         Rule::ternary_expr => parse_ternary_expr(input),
         Rule::switch_expr => parse_switch_expr(input),
         Rule::select_expr => parse_select_expr(input),
+        Rule::return_expr => parse_return_expr(input),
         _ => unreachable!(),
     }
 }

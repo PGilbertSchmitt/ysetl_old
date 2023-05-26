@@ -1,5 +1,6 @@
-use bytes::{Buf, Bytes};
+use bytes::{Buf};
 use std::io::Cursor;
+use std::rc::Rc;
 
 use crate::code::code::{self, OpCode};
 use crate::code::debug::lookup;
@@ -7,7 +8,10 @@ use crate::compiler::compiler::Bytecode;
 use crate::object::math::{math_op, ObjectMath};
 use crate::object::object::{BaseObject, Object, ObjectOps};
 
+use super::frame::Frame;
+
 const STACK_SIZE: usize = 2048;
+const MAX_FRAMES: usize = 2048;
 
 trait Stack {
     /** Pops last two objects off the stack, and returns them in the order they're removed */
@@ -22,27 +26,28 @@ impl Stack for Vec<Object> {
 
 #[derive(Debug)]
 pub struct VM {
-    instructions: Bytes,
-
+    call_stack: Vec<Frame>,
     constants: Vec<Object>,
-    globals: Vec<Object>,
+    globals: Vec<Option<Object>>,
     match_stack: Vec<Object>,
 
     stack: Vec<Object>,
-    last_pop: Object,
 }
 
 impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
-        VM {
-            instructions: bytecode.instuctions,
+        let main_frame = Frame::new(Rc::new(bytecode.instuctions), 0);
+        let constants = bytecode.constants.into_iter().map(|bo| bo.wrap()).collect();
+        // Must be initialized so that insertions can happen in any order
+        let globals = (0..bytecode.global_count).into_iter().map(|_| None).collect();
 
-            constants: bytecode.constants.into_iter().map(|bo| bo.wrap()).collect(),
-            globals: Vec::with_capacity(bytecode.global_count),
+        VM {
+            call_stack: Vec::from([main_frame]),
+            constants,
+            globals,
             match_stack: Vec::new(),
 
             stack: Vec::with_capacity(STACK_SIZE),
-            last_pop: BaseObject::Null.wrap(),
         }
     }
 
@@ -51,10 +56,11 @@ impl VM {
     }
 
     pub fn run(&mut self) -> Object {
-        // Can probably remove the need to clone the instructions if I separate the instructions
-        // from the mutable state struct, and apply all mut methods to that struct, passing in
-        // the instructions
-        let mut c = Cursor::new(self.instructions.clone());
+        // Duplicate Rc for the current instructions, used to keep reference for cursor during function calls
+        let mut cur_ins = self.cur_frame().instructions();
+        let mut c = Cursor::new(cur_ins.as_ref());
+        let mut last_pop: Option<Object> = None;
+
         while c.has_remaining() {
             let op = c.get_u8();
             match op {
@@ -68,8 +74,10 @@ impl VM {
                 code::False::VAL => self.stack.push(BaseObject::False.wrap()),
 
                 code::Pop::VAL => {
-                    let popped = self.stack.pop().expect("Called pop on empty stack");
-                    println!("Just popped: {:?}", popped);
+                    last_pop = self.stack.pop();
+                    if last_pop.is_none() {
+                        panic!("Called pop on empty stack");
+                    }
                 }
 
                 code::SetGVar::VAL => {
@@ -78,13 +86,16 @@ impl VM {
                     // to the globals vector, and push it back onto the stack, so we just leave it in the
                     // stack and reference it from there using `last` instead.
                     let top = self.stack.last().unwrap().reference();
-                    self.globals.insert(ptr, top);
+                    self.globals[ptr] = Some(top);
                 }
 
                 code::GetGVar::VAL => {
                     let ptr = c.get_u16() as usize;
-                    let global = self.globals.get(ptr).unwrap().reference();
-                    self.stack.push(global);
+                    if let Some(global) = self.globals.get(ptr).unwrap() {
+                        self.stack.push(global.reference());
+                    } else {
+                        panic!("Variable hasn't been initialized");
+                    };
                 }
 
                 code::Tuple::VAL => {
@@ -149,6 +160,26 @@ impl VM {
                     self.stack.push(target.get_index(&index))
                 }
 
+                code::Call::VAL => {
+                    let object = self.stack.pop().unwrap();
+                    match &object.inner.as_ref() {
+                        &BaseObject::Function(bytes) => {
+                            let new_frame = Frame::new(bytes.clone(), c.position());
+                            cur_ins = bytes.clone();
+                            c = Cursor::new(&cur_ins.as_ref());
+                            self.push_frame(new_frame);
+                        }
+                        other => panic!("Cannot call {:?}", other)
+                    }
+                }
+
+                code::Return::VAL => {
+                    let last_frame = self.pop_frame();
+                    cur_ins = self.cur_frame().instructions();
+                    c = Cursor::new(&cur_ins.as_ref());
+                    c.set_position(last_frame.ptr);
+                }
+
                 code::Add::VAL
                 | code::Subtract::VAL
                 | code::Mult::VAL
@@ -196,7 +227,22 @@ impl VM {
             }
         }
 
-        self.last_pop.reference()
+        last_pop.unwrap().reference()
+    }
+
+    fn cur_frame(&self) -> &Frame {
+        self.call_stack.last().expect("No frames found, this shouldn't be possible")
+    }
+
+    fn push_frame(&mut self, f: Frame) {
+        if self.call_stack.len() >= MAX_FRAMES {
+            panic!("Stack overflow!");
+        }
+        self.call_stack.push(f);
+    }
+
+    fn pop_frame(&mut self) -> Frame {
+        self.call_stack.pop().expect("Cannot pop empty callstack")
     }
 
     fn calculate_range(&mut self, size: u16) -> Vec<Object> {

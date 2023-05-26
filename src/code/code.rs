@@ -17,6 +17,7 @@ PopMatch     |  22
 Jump         |  23
 JumpNotTrue  |  24
 JumpNotMatch |  25
+Return       |  50
 Index        | 100
 Range        | 101
 Pick         | 102
@@ -93,70 +94,70 @@ impl<T: Sized + OpCode + OpCodeU16> OpCodeMakeWithU16 for T {
 pub struct Const;
 impl OpCodeU16 for Const {}
 impl OpCode for Const {
-    const VAL: u8 = 0;
+    const VAL: u8 = 1;
 }
 
 #[derive(Debug)]
 pub struct Null;
 impl OpCodeNone for Null {}
 impl OpCode for Null {
-    const VAL: u8 = 1;
+    const VAL: u8 = 2;
 }
 
 #[derive(Debug)]
 pub struct True;
 impl OpCodeNone for True {}
 impl OpCode for True {
-    const VAL: u8 = 2;
+    const VAL: u8 = 3;
 }
 
 #[derive(Debug)]
 pub struct False;
 impl OpCodeNone for False {}
 impl OpCode for False {
-    const VAL: u8 = 3;
+    const VAL: u8 = 4;
 }
 
 #[derive(Debug)]
 pub struct SetGVar;
 impl OpCodeU16 for SetGVar {}
 impl OpCode for SetGVar {
-    const VAL: u8 = 4;
+    const VAL: u8 = 5;
 }
 
 #[derive(Debug)]
 pub struct GetGVar;
 impl OpCodeU16 for GetGVar {}
 impl OpCode for GetGVar {
-    const VAL: u8 = 5;
+    const VAL: u8 = 6;
 }
 
 #[derive(Debug)]
 pub struct Tuple;
 impl OpCodeU16 for Tuple {}
 impl OpCode for Tuple {
-    const VAL: u8 = 6;
+    const VAL: u8 = 7;
 }
 
 #[derive(Debug)]
 pub struct Set;
 impl OpCodeU16 for Set {}
 impl OpCode for Set {
-    const VAL: u8 = 7;
+    const VAL: u8 = 8;
 }
 
 #[derive(Debug)]
 pub struct TupleRn;
 impl OpCodeU16 for TupleRn {}
 impl OpCode for TupleRn {
-    const VAL: u8 = 8;
+    const VAL: u8 = 9;
 }
 
 #[derive(Debug)]
 pub struct SetRn;
 impl OpCodeU16 for SetRn {}
 impl OpCode for SetRn {
-    const VAL: u8 = 9;
+    const VAL: u8 = 10;
 }
 
 #[derive(Debug)]
@@ -202,10 +203,24 @@ impl OpCode for JumpNotMatch {
 }
 
 #[derive(Debug)]
+pub struct Return;
+impl OpCodeNone for Return {}
+impl OpCode for Return {
+    const VAL: u8 = 50;
+}
+
+#[derive(Debug)]
 pub struct Index;
 impl OpCodeNone for Index {}
 impl OpCode for Index {
     const VAL: u8 = 100;
+}
+
+#[derive(Debug)]
+pub struct Call;
+impl OpCodeNone for Call {}
+impl OpCode for Call {
+    const VAL: u8 = 103;
 }
 
 #[derive(Debug)]

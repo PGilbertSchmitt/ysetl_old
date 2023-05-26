@@ -1,5 +1,13 @@
 program :foo;
 
-"hello, world!"[10];
-[1..10][5];
-// foo(1,a)[5-1]{a+c};
+fifteen = func() {
+    a = 5 + 10;
+    case (a > 11) {
+        true: return a
+    };
+    a * 100
+};
+
+twenty = () => -4 + fifteen() + fifteen() - 6;
+
+twenty();

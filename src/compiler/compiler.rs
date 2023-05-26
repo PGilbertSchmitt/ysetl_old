@@ -1,4 +1,7 @@
+use std::rc::Rc;
+
 use crate::code::code::{self, OpCodeMake, OpCodeMakeWithU16};
+// use crate::code::debug::print_bytes;
 use crate::object::object::{BaseObject};
 use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS, Former, Postfix};
 use bytes::{BufMut, Bytes, BytesMut};
@@ -10,7 +13,6 @@ pub struct Compiler {
     symbol_map: SymbolMap,
 
     scopes: Vec<ScopeCtx>,
-    scope_ptr: usize,
 }
 
 pub struct BytecodeRef<'a> {
@@ -31,15 +33,32 @@ struct ScopeCtx {
 
 impl Compiler {
     pub fn new() -> Self {
-        let global_scope = ScopeCtx { instructions: BytesMut::new() };
+        let global_scope = ScopeCtx {
+            instructions: BytesMut::new(),
+        };
 
         Compiler {
             constants: vec![],
             symbol_map: SymbolMap::new(),
 
             scopes: vec![global_scope],
-            scope_ptr: 0,
         }
+    }
+
+    fn enter_scope(&mut self) {
+        let new_scope = ScopeCtx {
+            instructions: BytesMut::new(),
+        };
+        self.scopes.push(new_scope);
+    }
+
+    fn leave_scope(&mut self) -> Bytes {
+        let top_scope = self.scopes.pop().unwrap();
+        top_scope.instructions.freeze()
+    }
+
+    fn cur_scope_mut(&mut self) -> &mut ScopeCtx {
+        self.scopes.last_mut().expect("Can not run out of scopes, what did you do?")
     }
 
     fn current_instructions(&self) -> &BytesMut {
@@ -127,6 +146,10 @@ impl Compiler {
                         self.compile_expr(*index);
                         self.emit(&code::Index.make());
                     }
+                    Postfix::Call(_args) => {
+                        // Compile args at some point
+                        self.emit(&code::Call.make());
+                    }
                     _ => unimplemented!()
                 }
             }
@@ -137,10 +160,10 @@ impl Compiler {
             } => {
                 self.compile_expr(*condition);
 
-                let jnt_operand_ptr = self.current_instructions().len() + 1;
+                let jnt_operand_ptr = self.ins_len() + 1;
                 self.emit(&code::JumpNotTrue.make(u16::MAX));
                 self.compile_expr(*consequence);
-                let jump_operand_ptr = self.current_instructions().len() + 1;
+                let jump_operand_ptr = self.ins_len() + 1;
                 self.emit(&code::Jump.make(u16::MAX));
                 let jnt_location = self.cur_ip();
                 self.compile_expr(*alternative);
@@ -157,10 +180,39 @@ impl Compiler {
                 match left {
                     LHS::Ident { target, selectors: _ } => {
                         let i = self.symbol_map.register(target).index;
-                        self.emit(&code::SetGVar.make(i))
+                        self.emit(&code::SetGVar.make(i));
                     },
                     _ => unimplemented!(),
+                };
+            }
+            
+            ExprST::Function {
+                req_params: _,
+                opt_params: _,
+                locked_params: _,
+                body,
+                null_return
+            } => {
+                self.enter_scope();
+
+                self.compile_expr_list(body, true);
+                if self.ins_len() > 0 {
+                    self.handle_null_return(null_return);
+                } else {
+                    self.emit(&code::Null.make())
                 }
+                self.emit(&code::Return.make());
+                let func_code = self.leave_scope();
+
+                // println!("Bytes for my function are:\n{}\n:", print_bytes(&func_code));
+
+                let const_ptr = self.add_const(BaseObject::Function(Rc::new(func_code)));
+                self.emit_const(const_ptr);
+            }
+
+            ExprST::Return(expr) => {
+                self.compile_expr(*expr);
+                self.emit(&code::Return.make());
             }
             node => unimplemented!("Not sure how to compile {:?}", node),
         };
@@ -185,15 +237,11 @@ impl Compiler {
     }
 
     fn cur_ip(&self) -> u16 {
-        self.current_instructions().len() as u16
+        self.ins_len() as u16
     }
 
     fn emit(&mut self, bytes: &Bytes) {
-        self.scopes
-            .last_mut()
-            .unwrap()
-            .instructions
-            .extend_from_slice(bytes);
+        self.cur_scope_mut().instructions.extend_from_slice(bytes);
     }
 
     fn emit_const(&mut self, const_ptr: usize) {
@@ -253,7 +301,7 @@ impl Compiler {
     }
 
     fn overwrite(&mut self, at: usize, value: Bytes) {
-        let top_scope = self.scopes.last_mut().unwrap();
+        let top_scope = self.cur_scope_mut();
         for (i, byte) in value.into_iter().enumerate() {
             top_scope.instructions[at + i] = byte;
         }
@@ -329,9 +377,7 @@ impl Compiler {
             self.emit(&code::Null.make());
         } else {
             let len = self.ins_len() - 1;
-            self.scopes
-                .last_mut()
-                .unwrap()
+            self.cur_scope_mut()
                 .instructions
                 .truncate(len);
         }
@@ -366,7 +412,7 @@ mod tests {
     use super::{Bytecode, Compiler};
     use crate::code::code::{self, OpCode};
     use crate::code::debug::print_bytes;
-    use crate::object::object::BaseObject::*;
+    use crate::object::object::BaseObject::{*, self};
     use crate::parser::parser;
     use bytes::Bytes;
 
@@ -383,9 +429,8 @@ mod tests {
         c.finish()
     }
 
-    fn assert_bytes(result: &Bytecode, bytes: Vec<u8>) {
-        let expected = &Bytes::from(bytes);
-        let actual = &result.instuctions;
+    fn assert_bytes(actual: &Bytes, expected: Vec<u8>) {
+        let expected = &Bytes::from(expected);
         let equal = expected == actual;
         if !equal {
             panic!(
@@ -394,6 +439,12 @@ mod tests {
                 print_bytes(&actual)
             )
         }
+    }
+
+    fn assert_fn_bytes(function: &BaseObject, expected: Vec<u8>) {
+        if let Function(bytes) = function {
+            assert_bytes(bytes, expected);
+        } else { panic!("not a function"); }
     }
 
     #[test]
@@ -445,7 +496,7 @@ mod tests {
 
     #[test] #[rustfmt::skip]
     fn ternary() {
-        assert_bytes(&compile_program("if true ? 1 : 2; 99;"), vec![
+        assert_bytes(&compile_program("if true ? 1 : 2; 99;").instuctions, vec![
             // 0
             code::True::VAL,
             // 1
@@ -462,6 +513,79 @@ mod tests {
             code::Const::VAL, 0, 2,
             // 17
             code::Pop::VAL,
+            // 18
+        ]);
+    }
+
+    #[test] #[rustfmt::skip]
+    fn functions() {
+        let program = compile_program("func() { 1 };");
+        let function = &program.constants.last().unwrap();
+        assert_fn_bytes(function, vec![
+            // 0
+            code::Const::VAL, 0, 0,
+            // 3
+            code::Return::VAL,
+        ]);
+
+        let program = compile_program("func() {};");
+        let function = &program.constants.last().unwrap();
+        assert_fn_bytes(function, vec![
+            // 0
+            code::Null::VAL,
+            // 1
+            code::Return::VAL,
+        ]);
+
+        let program = compile_program("func() { 1; };");
+        let function = &program.constants.last().unwrap();
+        assert_fn_bytes(function, vec![
+            // 0
+            code::Const::VAL, 0, 0,
+            // 3
+            code::Pop::VAL,
+            // 4
+            code::Null::VAL,
+            // 5
+            code::Return::VAL,
+        ]);
+
+        let program = compile_program("func() { 1; 2 };");
+        let function = &program.constants.last().unwrap();
+        assert_fn_bytes(function, vec![
+            // 0
+            code::Const::VAL, 0, 0,
+            // 3
+            code::Pop::VAL,
+            // 4
+            code::Const::VAL, 0, 1,
+            // 7
+            code::Return::VAL,
+        ]);
+
+        let program = compile_program("func() { if false ? return 1 : return 5; };");
+        let function = &program.constants.last().unwrap();
+        assert_fn_bytes(function, vec![
+            // 0
+            code::False::VAL,
+            // 1
+            code::JumpNotTrue::VAL, 0, 11,
+            // 4
+            code::Const::VAL, 0, 0,
+            // 7
+            code::Return::VAL,
+            // 8
+            code::Jump::VAL, 0, 15, // Unreachable
+            // 11
+            code::Const::VAL, 0, 1,
+            // 14
+            code::Return::VAL,
+            // 15
+            code::Pop::VAL, // Unreachable
+            // 16
+            code::Null::VAL, // Unreachable
+            // 17
+            code::Return::VAL, // Unreachable
             // 18
         ]);
     }

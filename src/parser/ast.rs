@@ -181,6 +181,7 @@ pub enum ExprST<'a> {
         op: SelectOp,
         iterator: IteratorST<'a>,
     },
+    Return(Box<ExprST<'a>>),
 }
 
 pub struct Program<'a> {

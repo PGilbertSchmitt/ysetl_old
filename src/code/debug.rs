@@ -21,7 +21,10 @@ pub fn lookup(byte: u8) -> Option<(&'static [usize], &'static str)> {
         JumpNotTrue::VAL => Some((JumpNotTrue::OPERAND_COUNTS, "JumpNotTrue")),
         JumpNotMatch::VAL => Some((JumpNotMatch::OPERAND_COUNTS, "JumpNotMatch")),
 
+        Return::VAL => Some((Return::OPERAND_COUNTS, "Return")),
+
         Index::VAL => Some((Index::OPERAND_COUNTS, "Index")),
+        Call::VAL => Some((Call::OPERAND_COUNTS, "Call")),
 
         NullCoal::VAL => Some((NullCoal::OPERAND_COUNTS, "NullCoal")),
         TupleStart::VAL => Some((TupleStart::OPERAND_COUNTS, "TupleStart")),

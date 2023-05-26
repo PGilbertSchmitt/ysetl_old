@@ -66,7 +66,7 @@ impl ObjectMath for BaseObject {
     }
 }
 
-pub fn math_op(left: Rc<BaseObject>, right: Rc<BaseObject>, op: u8) -> Option<BaseObject> {
+pub fn math_op(left: &Rc<BaseObject>, right: &Rc<BaseObject>, op: u8) -> Option<BaseObject> {
     match (left.as_ref(), right.as_ref()) {
         (&Integer(left), &Integer(right)) => {
             return Some(int_math(left, right, op));

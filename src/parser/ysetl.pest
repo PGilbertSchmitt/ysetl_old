@@ -17,6 +17,7 @@ newat = { "newat" }
 func = _{ "func" }
 if_ = @{ "if" ~ __ }
 case_ = @{ "case" ~ __ }
+return_ = @{ "return" ~ __ }
 
 mod_ = @{ "mod" ~ __ }
 div = @{ "div" ~ __ }
@@ -202,10 +203,13 @@ assignment_expr = { lhs ~ assign ~ expr }
 
 select_expr = { select_op ~ iterator }
 
+return_expr = { return_ ~ expr }
+
 expr = _{ 
    | ternary_expr
    | switch_expr
    | select_expr
+   | return_expr
    | assignment_expr
    | bin_expr
 }
