@@ -29,13 +29,13 @@ There's nothing special about the name **YSETL**, and I'm not breaking any new g
 - [x] Tuples (Lists)
 - [x] Sets
 - [ ] Maps (specialized Sets)
-- [ ] Functions
+- [x] Functions
 
 ### Operations
 - [x] Arithmetic
 - [x] Control flow
 - [x] Global variables
-- [ ] Local variables
+- [x] Local variables
 - [ ] Dynamic variables
 - [ ] Boolean operations
 - [ ] Tuple operations
