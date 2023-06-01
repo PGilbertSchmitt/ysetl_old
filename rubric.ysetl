@@ -51,6 +51,14 @@ case (foo > bar) {
     ~ : e
 };
 
+fifteen = func() {
+    ten = () => 10;
+    b = 5;
+    b + ten()
+};
+
+fifteen();
+
 // choose x in X | x > 5;
 // exists x=f(y), a=g(b) | x != a, x > 5;
 // forall z in Z | g(z);

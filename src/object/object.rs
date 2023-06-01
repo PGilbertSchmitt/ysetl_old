@@ -23,7 +23,13 @@ pub enum BaseObject {
     String(String),
     Tuple(Vec<Object>),
     Set(Vec<Object>),
-    Function(Rc<Bytes>),
+    Function {
+        ins: Rc<Bytes>,
+        locals: usize,
+        req_params: u16,
+        opt_params: u16,
+        locked_values: Vec<Object>
+    },
 }
 
 impl BaseObject {
@@ -52,7 +58,7 @@ impl ObjectOps for BaseObject {
             BaseObject::String(str) => str.len() > 0,
             BaseObject::Tuple(els) => els.len() > 0,
             BaseObject::Set(els) => els.len() > 0,
-            BaseObject::Function(_) => true,
+            BaseObject::Function {..} => true,
         }
     }
 
@@ -107,7 +113,7 @@ impl Debug for BaseObject {
             Self::String(str) => f.debug_tuple("str").field(str).finish(),
             Self::Tuple(els) => f.debug_tuple("tup").field(els).finish(),
             Self::Set(els) => f.debug_tuple("set").field(els).finish(),
-            Self::Function(_) => f.debug_tuple("fn").finish(),
+            Self::Function {locked_values, ..} => f.debug_tuple("fn").field(locked_values).finish(),
         }
     }
 }

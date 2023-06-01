@@ -1,16 +1,15 @@
 use std::rc::Rc;
 
-use crate::code::code::{self, OpCodeMake, OpCodeMakeWithU16};
-// use crate::code::debug::print_bytes;
-use crate::object::object::{BaseObject};
-use crate::parser::ast::{BinOp, Case, ExprST, PreOp, Program, LHS, Former, Postfix};
 use bytes::{BufMut, Bytes, BytesMut};
-
-use super::symbols::SymbolMap;
+use crate::code::code::{self, OpCodeMake, OpCodeMakeWithU16};
+use crate::code::debug::print_bytes;
+use crate::object::object::BaseObject;
+use crate::parser::ast::{BinOp, Case, ExprST, Former, Postfix, PreOp, Program, LHS};
+use super::symbols::{Scope, SymbolRegistry};
 
 pub struct Compiler {
-    constants: Vec<BaseObject>,    
-    symbol_map: SymbolMap,
+    constants: Vec<BaseObject>,
+    symbol_map: SymbolRegistry,
 
     scopes: Vec<ScopeCtx>,
 }
@@ -39,7 +38,7 @@ impl Compiler {
 
         Compiler {
             constants: vec![],
-            symbol_map: SymbolMap::new(),
+            symbol_map: SymbolRegistry::new(),
 
             scopes: vec![global_scope],
         }
@@ -50,15 +49,20 @@ impl Compiler {
             instructions: BytesMut::new(),
         };
         self.scopes.push(new_scope);
+        self.symbol_map.enter_scope();
     }
 
-    fn leave_scope(&mut self) -> Bytes {
+    fn leave_scope(&mut self) -> (Bytes, usize) {
         let top_scope = self.scopes.pop().unwrap();
-        top_scope.instructions.freeze()
+        let local_count = self.symbol_map.size();
+        self.symbol_map.exit_scope();
+        (top_scope.instructions.freeze(), local_count)
     }
 
     fn cur_scope_mut(&mut self) -> &mut ScopeCtx {
-        self.scopes.last_mut().expect("Can not run out of scopes, what did you do?")
+        self.scopes
+            .last_mut()
+            .expect("Can not run out of scopes, what did you do?")
     }
 
     fn current_instructions(&self) -> &BytesMut {
@@ -79,7 +83,9 @@ impl Compiler {
             self.compile_expr(expr);
             // OPTIMIZE: If the last op after the above line runs is something that would only
             // push a value onto the stack, just remove it and omit the following pop.
-            if with_pop { self.emit(&code::Pop.make()); }
+            if with_pop {
+                self.emit(&code::Pop.make());
+            }
         }
     }
 
@@ -103,23 +109,28 @@ impl Compiler {
                 self.emit_const(const_ptr);
             }
             ExprST::Ident(name) => {
-                let i = self.symbol_map.lookup(name).expect("'{}' is undefined in current scope").index;
-                self.emit(&code::GetGVar.make(i));
+                self.compile_ident(name);
             }
             ExprST::String(value) => {
                 let const_ptr = self.add_const(BaseObject::String(value.to_owned()));
                 self.emit_const(const_ptr);
             }
             ExprST::TupleLiteral(former) => {
-                self.compile_former(former, code::Tuple, code::TupleRn);
+                self.compile_former(former, code::ToTuple, code::ToTupleRn);
             }
             ExprST::SetLiteral(former) => {
-                self.compile_former(former, code::Set, code::SetRn);
+                self.compile_former(former, code::ToSet, code::ToSetRn);
             }
-            ExprST::Infix { op, mut left, mut right } => {
+            ExprST::Infix {
+                op,
+                mut left,
+                mut right,
+            } => {
                 // Need special jump logic when op is AND/OR/IMPL so that right side is only
                 // evaluated in correct circumstances.
-                if let BinOp::GT | BinOp::GTEQ = op { (left, right) = (right, left) }
+                if let BinOp::GT | BinOp::GTEQ = op {
+                    (left, right) = (right, left)
+                }
                 self.compile_expr(*left);
                 self.compile_expr(*right);
                 self.emit_binop(op);
@@ -146,11 +157,12 @@ impl Compiler {
                         self.compile_expr(*index);
                         self.emit(&code::Index.make());
                     }
-                    Postfix::Call(_args) => {
-                        // Compile args at some point
-                        self.emit(&code::Call.make());
+                    Postfix::Call(args) => {
+                        let arg_count = args.len() as u16;
+                        self.compile_expr_list(args, false);
+                        self.emit(&code::Call.make(arg_count));
                     }
-                    _ => unimplemented!()
+                    _ => unimplemented!(),
                 }
             }
             ExprST::Ternary {
@@ -178,22 +190,33 @@ impl Compiler {
             ExprST::Assign { left, right } => {
                 self.compile_expr(*right);
                 match left {
-                    LHS::Ident { target, selectors: _ } => {
-                        let i = self.symbol_map.register(target).index;
-                        self.emit(&code::SetGVar.make(i));
-                    },
+                    LHS::Ident {
+                        target,
+                        selectors: _,
+                    } => {
+                        let sym = self.symbol_map.register(target);
+                        let index = sym.index;
+                        match sym.scope {
+                            Scope::GLOBAL => self.emit(&code::SetGVar.make(index)),
+                            Scope::LOCAL => self.emit(&code::SetLVar.make(index)),
+                        }
+                    }
                     _ => unimplemented!(),
                 };
             }
-            
+
             ExprST::Function {
-                req_params: _,
-                opt_params: _,
-                locked_params: _,
+                req_params,
+                opt_params,
+                locked_params,
                 body,
-                null_return
+                null_return,
             } => {
                 self.enter_scope();
+
+                for p in req_params.iter() { self.symbol_map.register(p); }
+                for p in opt_params.iter() { self.symbol_map.register(p); }
+                for p in locked_params.iter() { self.symbol_map.register(p); }
 
                 self.compile_expr_list(body, true);
                 if self.ins_len() > 0 {
@@ -202,18 +225,35 @@ impl Compiler {
                     self.emit(&code::Null.make())
                 }
                 self.emit(&code::Return.make());
-                let func_code = self.leave_scope();
+                let (func_code, local_count) = self.leave_scope();
 
-                // println!("Bytes for my function are:\n{}\n:", print_bytes(&func_code));
+                println!("Bytes for my function are:\n{}\n:", print_bytes(&func_code));
 
-                let const_ptr = self.add_const(BaseObject::Function(Rc::new(func_code)));
+                let req_count = req_params.len() as u16;
+                let opt_count = opt_params.len() as u16;
+                let locked_count = locked_params.len() as u16;
+                
+                // First, build the const object without the locked values
+                let const_ptr = self.add_const(BaseObject::Function {
+                    ins: Rc::new(func_code),
+                    locals: local_count - (req_count + opt_count + locked_count) as usize,
+                    req_params: req_count,
+                    opt_params: opt_count,
+                    locked_values: vec![],
+                });
                 self.emit_const(const_ptr);
+
+                // Now, load the locked params onto the stack and emit the ToFn code to build
+                // the rest of the function
+                for name in locked_params.iter() { self.compile_ident(name); }
+                self.emit(&code::ToFn.make(locked_params.len() as u16));
             }
 
             ExprST::Return(expr) => {
                 self.compile_expr(*expr);
                 self.emit(&code::Return.make());
             }
+
             node => unimplemented!("Not sure how to compile {:?}", node),
         };
     }
@@ -313,6 +353,17 @@ impl Compiler {
         self.overwrite(at, bytes.freeze())
     }
 
+    fn compile_ident(&mut self, name: &str) {
+        let sym = self
+            .symbol_map
+            .lookup(name)
+            .expect(&format!("'{}' is undefined in current scope", name));
+        match sym.scope {
+            Scope::GLOBAL => self.emit(&code::GetGVar.make(sym.index)),
+            Scope::LOCAL => self.emit(&code::GetLVar.make(sym.index)),
+        }
+    }
+
     fn compile_match_switch(&mut self, input: ExprST, cases: Vec<Case>) {
         self.compile_expr(input);
         self.emit(&code::PushMatch.make());
@@ -328,12 +379,13 @@ impl Compiler {
         let mut jmp_operand_ptrs: Vec<usize> = vec![];
         let mut last_cond_jump_operand_ptr: Option<usize> = None;
         let mut has_default = false;
-        
+
         for Case {
             condition,
             consequence,
             null_return,
-        } in cases.into_iter() {
+        } in cases.into_iter()
+        {
             if let Some(ptr) = last_cond_jump_operand_ptr {
                 self.overwrite_u16(ptr, self.cur_ip());
             }
@@ -377,9 +429,7 @@ impl Compiler {
             self.emit(&code::Null.make());
         } else {
             let len = self.ins_len() - 1;
-            self.cur_scope_mut()
-                .instructions
-                .truncate(len);
+            self.cur_scope_mut().instructions.truncate(len);
         }
     }
 
@@ -395,14 +445,18 @@ impl Compiler {
                 self.compile_expr_list(expressions, false);
                 self.emit(&lit_builder.make(size));
             }
-            Former::Range { range_start, range_step, range_end } => {
+            Former::Range {
+                range_start,
+                range_step,
+                range_end,
+            } => {
                 let parts = if range_step.is_none() { 2 } else { 3 };
                 range_step.map(|step| self.compile_expr(*step));
                 self.compile_expr(*range_end);
                 self.compile_expr(*range_start);
                 self.emit(&range_builder.make(parts));
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }
@@ -412,7 +466,7 @@ mod tests {
     use super::{Bytecode, Compiler};
     use crate::code::code::{self, OpCode};
     use crate::code::debug::print_bytes;
-    use crate::object::object::BaseObject::{*, self};
+    use crate::object::object::BaseObject::{self, *};
     use crate::parser::parser;
     use bytes::Bytes;
 
@@ -442,19 +496,27 @@ mod tests {
     }
 
     fn assert_fn_bytes(function: &BaseObject, expected: Vec<u8>) {
-        if let Function(bytes) = function {
-            assert_bytes(bytes, expected);
-        } else { panic!("not a function"); }
+        if let Function { ins, .. } = function {
+            assert_bytes(ins, expected);
+        } else {
+            panic!("not a function");
+        }
     }
 
     #[test]
     fn literals() {
         let int_code = compile("3");
-        assert_eq!(int_code.instuctions, Bytes::from(vec![code::Const::VAL, 0, 0]));
+        assert_eq!(
+            int_code.instuctions,
+            Bytes::from(vec![code::Const::VAL, 0, 0])
+        );
         assert_eq!(int_code.constants[0], Integer(3));
 
         let float_code = compile("3.0");
-        assert_eq!(float_code.instuctions, Bytes::from(vec![code::Const::VAL, 0, 0]));
+        assert_eq!(
+            float_code.instuctions,
+            Bytes::from(vec![code::Const::VAL, 0, 0])
+        );
         assert_eq!(float_code.constants[0], Float(3.0));
 
         let true_code = compile("true");
@@ -470,11 +532,17 @@ mod tests {
         assert!(null_code.constants.is_empty());
 
         let negative_int = compile("-1");
-        assert_eq!(negative_int.instuctions, Bytes::from(vec![code::Const::VAL, 0, 0]));
+        assert_eq!(
+            negative_int.instuctions,
+            Bytes::from(vec![code::Const::VAL, 0, 0])
+        );
         assert_eq!(negative_int.constants[0], Integer(-1));
 
         let negative_float = compile("-1.0");
-        assert_eq!(negative_float.instuctions, Bytes::from(vec![code::Const::VAL, 0, 0]));
+        assert_eq!(
+            negative_float.instuctions,
+            Bytes::from(vec![code::Const::VAL, 0, 0])
+        );
         assert_eq!(negative_float.constants[0], Float(-1.0));
     }
 
@@ -482,15 +550,43 @@ mod tests {
     fn simple_math() {
         assert_eq!(
             compile("3 + 4").instuctions,
-            Bytes::from(vec![code::Const::VAL, 0, 0, code::Const::VAL, 0, 1, code::Add::VAL])
+            Bytes::from(vec![
+                code::Const::VAL,
+                0,
+                0,
+                code::Const::VAL,
+                0,
+                1,
+                code::Add::VAL
+            ])
         );
         assert_eq!(
             compile("3 - 4").instuctions,
-            Bytes::from(vec![code::Const::VAL, 0, 0, code::Const::VAL, 0, 1, code::Subtract::VAL])
+            Bytes::from(vec![
+                code::Const::VAL,
+                0,
+                0,
+                code::Const::VAL,
+                0,
+                1,
+                code::Subtract::VAL
+            ])
         );
         assert_eq!(
             compile("3 + (4 / 5)").instuctions,
-            Bytes::from(vec![code::Const::VAL, 0, 0, code::Const::VAL, 0, 1, code::Const::VAL, 0, 2, code::Div::VAL, code::Add::VAL])
+            Bytes::from(vec![
+                code::Const::VAL,
+                0,
+                0,
+                code::Const::VAL,
+                0,
+                1,
+                code::Const::VAL,
+                0,
+                2,
+                code::Div::VAL,
+                code::Add::VAL
+            ])
         );
     }
 

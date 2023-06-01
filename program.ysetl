@@ -1,13 +1,10 @@
 program :foo;
 
-fifteen = func() {
-    a = 5 + 10;
-    case (a > 11) {
-        true: return a
-    };
-    a * 100
+c = 100;
+
+bar = func (a,b?,c!) {  
+    g = -99;
+    a + (if b ? g : c)
 };
 
-twenty = () => -4 + fifteen() + fifteen() - 6;
-
-twenty();
+bar(1,false);

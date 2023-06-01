@@ -5,14 +5,16 @@ use bytes::Bytes;
 #[derive(Debug)]
 pub struct Frame {
     ins: Rc<Bytes>,
-    pub ptr: u64,
+    pub ins_ptr: u64,
+    pub stack_ptr: usize,
 }
 
 impl Frame {
-    pub fn new(ins: Rc<Bytes>, ptr: u64) -> Self {
+    pub fn new(ins: Rc<Bytes>, ins_ptr: u64, stack_ptr: usize) -> Self {
         Self {
             ins,
-            ptr,
+            ins_ptr,
+            stack_ptr,
         }
     }
 

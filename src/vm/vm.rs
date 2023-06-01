@@ -28,7 +28,7 @@ impl Stack for Vec<Object> {
 pub struct VM {
     call_stack: Vec<Frame>,
     constants: Vec<Object>,
-    globals: Vec<Option<Object>>,
+    globals: Vec<Object>,
     match_stack: Vec<Object>,
 
     stack: Vec<Object>,
@@ -36,10 +36,10 @@ pub struct VM {
 
 impl VM {
     pub fn new(bytecode: Bytecode) -> Self {
-        let main_frame = Frame::new(Rc::new(bytecode.instuctions), 0);
+        let main_frame = Frame::new(Rc::new(bytecode.instuctions), 0, 0);
         let constants = bytecode.constants.into_iter().map(|bo| bo.wrap()).collect();
         // Must be initialized so that insertions can happen in any order
-        let globals = (0..bytecode.global_count).into_iter().map(|_| None).collect();
+        let globals = (0..bytecode.global_count).into_iter().map(|_| BaseObject::Null.wrap()).collect();
 
         VM {
             call_stack: Vec::from([main_frame]),
@@ -55,7 +55,7 @@ impl VM {
         self.stack.last()
     }
 
-    pub fn run(&mut self) -> Object {
+    pub fn run(&mut self) -> Option<Object> {
         // Duplicate Rc for the current instructions, used to keep reference for cursor during function calls
         let mut cur_ins = self.cur_frame().instructions();
         let mut c = Cursor::new(cur_ins.as_ref());
@@ -86,39 +86,52 @@ impl VM {
                     // to the globals vector, and push it back onto the stack, so we just leave it in the
                     // stack and reference it from there using `last` instead.
                     let top = self.stack.last().unwrap().reference();
-                    self.globals[ptr] = Some(top);
+                    self.globals[ptr] = top;
                 }
 
                 code::GetGVar::VAL => {
                     let ptr = c.get_u16() as usize;
-                    if let Some(global) = self.globals.get(ptr).unwrap() {
-                        self.stack.push(global.reference());
-                    } else {
-                        panic!("Variable hasn't been initialized");
-                    };
+                    let global = self.globals.get(ptr).unwrap();
+                    self.stack.push(global.reference());
                 }
 
-                code::Tuple::VAL => {
+                code::SetLVar::VAL => {
+                    let offset = c.get_u16() as usize;
+                    // To do this in a straighforward manner, we would pop the stack, insert a reference
+                    // to the globals vector, and push it back onto the stack, so we just leave it in the
+                    // stack and reference it from there using `last` instead.
+                    let stack_ptr = self.cur_frame().stack_ptr;
+                    let top = self.stack.last().unwrap().reference();
+                    self.stack[stack_ptr + offset] = top;
+                }
+
+                code::GetLVar::VAL => {
+                    let offset = c.get_u16() as usize;
+                    let stack_ptr = self.cur_frame().stack_ptr + offset;
+                    self.stack.push(self.stack[stack_ptr].reference());
+                }
+
+                code::ToTuple::VAL => {
                     let size = c.get_u16() as usize;
                     let drain_start: usize = self.stack.len() - size;
                     let elements: Vec<Object> = self.stack.drain(drain_start..).collect();
                     self.stack.push(BaseObject::Tuple(elements).wrap());
                 }
 
-                code::Set::VAL => {
+                code::ToSet::VAL => {
                     let size = c.get_u16() as usize;
                     let drain_start: usize = self.stack.len() - size;
                     let elements: Vec<Object> = self.stack.drain(drain_start..).collect();
                     self.stack.push(BaseObject::Set(elements).wrap());
                 }
 
-                code::TupleRn::VAL => {
+                code::ToTupleRn::VAL => {
                     let size = c.get_u16();
                     let elements = self.calculate_range(size);
                     self.stack.push(BaseObject::Tuple(elements).wrap());
                 }
 
-                code::SetRn::VAL => {
+                code::ToSetRn::VAL => {
                     let size = c.get_u16();
                     let elements = self.calculate_range(size);
                     self.stack.push(BaseObject::Set(elements).wrap());
@@ -161,11 +174,42 @@ impl VM {
                 }
 
                 code::Call::VAL => {
-                    let object = self.stack.pop().unwrap();
-                    match &object.inner.as_ref() {
-                        &BaseObject::Function(bytes) => {
-                            let new_frame = Frame::new(bytes.clone(), c.position());
-                            cur_ins = bytes.clone();
+                    let arg_count = c.get_u16();
+                    let arg_count_size = arg_count as usize;
+                    let fn_obj = self.stack.get(self.stack.len() - arg_count_size - 1).unwrap().reference();
+                    match &fn_obj.inner.as_ref() {
+                        &BaseObject::Function{
+                            ins,
+                            locals,
+                            req_params,
+                            opt_params,
+                            locked_values,
+                        } => {
+                            let total_passable_args = req_params + opt_params;
+                            if arg_count < *req_params {
+                                panic!("Did not provide enough arguments to function");
+                            }
+                            if arg_count > total_passable_args {
+                                panic!("Provided too many arguments to function");
+                            }
+                            let base_pointer = self.stack.len() - arg_count_size;
+
+                            // Any opt params not provided must now be set to null
+                            let unaccounted_opts_count = total_passable_args - arg_count;
+                            (0..unaccounted_opts_count).for_each(|_| self.stack.push(BaseObject::Null.wrap()));
+            
+                            // let locked_offset = total_passable_args as usize;
+                            for value in locked_values.iter() {
+                                self.stack.push(value.reference());
+                            }
+
+                            // This could be inefficient, but Rust doesn't really let me have uninitialized elements of an array/vector
+                            // I would definitely need some unsafe code to be more efficient.
+                            // I choose Null as the placeholder since OM (ISETL's Null) is the default value of uninitialized variables in ISETL
+                            let mut local_placeholders = (0..*locals).into_iter().map(|_| BaseObject::Null.wrap()).collect();
+                            self.stack.append(&mut local_placeholders);
+                            let new_frame = Frame::new(ins.clone(), c.position(), base_pointer);
+                            cur_ins = ins.clone();
                             c = Cursor::new(&cur_ins.as_ref());
                             self.push_frame(new_frame);
                         }
@@ -177,7 +221,11 @@ impl VM {
                     let last_frame = self.pop_frame();
                     cur_ins = self.cur_frame().instructions();
                     c = Cursor::new(&cur_ins.as_ref());
-                    c.set_position(last_frame.ptr);
+                    c.set_position(last_frame.ins_ptr);
+                    let return_value = self.stack.pop().unwrap();
+                    self.stack.truncate(last_frame.stack_ptr);
+                    self.stack.pop(); // Remove the function on the stack?
+                    self.stack.push(return_value);
                 }
 
                 code::Add::VAL
@@ -223,11 +271,30 @@ impl VM {
                     self.stack.push(val.not());
                 }
 
+                code::ToFn::VAL => {
+                    let locked_param_count = c.get_u16() as usize;
+                    let fn_location = self.stack.len() - locked_param_count;
+
+                    let locked_values = self.stack.drain(fn_location..).collect::<Vec<Object>>();
+                    let func = self.stack.pop().unwrap();
+                    if let BaseObject::Function { ins, locals, req_params, opt_params, .. } = func.inner.as_ref() {
+                        self.stack.push(BaseObject::Function {
+                            ins: ins.clone(),
+                            locals: *locals,
+                            req_params: *req_params,
+                            opt_params: *opt_params,
+                            locked_values, 
+                        }.wrap())
+                    } else {
+                        panic!("Expected Function on top of stack, received: {:?}", func);
+                    }
+                }
+
                 code => unimplemented!("Don't know how to execute code {code}"),
             }
         }
 
-        last_pop.unwrap().reference()
+        last_pop.map(|lp| lp.reference())
     }
 
     fn cur_frame(&self) -> &Frame {

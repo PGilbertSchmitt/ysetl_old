@@ -7,10 +7,13 @@ True         |   2
 False        |   3
 SetGVar      |   4
 GetGVar      |   5
-Tuple        |   6
-Set          |   7
-TupleRn      |   8
-SetRn        |   9
+SetLVar      |   6
+GetLVar      |   7
+ToTuple      |   8
+ToSet        |   9
+ToTupleRn    |  10
+ToSetRn      |  11
+ToFn         |  12
 Pop          |  20
 PushMatch    |  21
 PopMatch     |  22
@@ -94,70 +97,91 @@ impl<T: Sized + OpCode + OpCodeU16> OpCodeMakeWithU16 for T {
 pub struct Const;
 impl OpCodeU16 for Const {}
 impl OpCode for Const {
-    const VAL: u8 = 1;
+    const VAL: u8 = 0;
 }
 
 #[derive(Debug)]
 pub struct Null;
 impl OpCodeNone for Null {}
 impl OpCode for Null {
-    const VAL: u8 = 2;
+    const VAL: u8 = 1;
 }
 
 #[derive(Debug)]
 pub struct True;
 impl OpCodeNone for True {}
 impl OpCode for True {
-    const VAL: u8 = 3;
+    const VAL: u8 = 2;
 }
 
 #[derive(Debug)]
 pub struct False;
 impl OpCodeNone for False {}
 impl OpCode for False {
-    const VAL: u8 = 4;
+    const VAL: u8 = 3;
 }
 
 #[derive(Debug)]
 pub struct SetGVar;
 impl OpCodeU16 for SetGVar {}
 impl OpCode for SetGVar {
-    const VAL: u8 = 5;
+    const VAL: u8 = 4;
 }
 
 #[derive(Debug)]
 pub struct GetGVar;
 impl OpCodeU16 for GetGVar {}
 impl OpCode for GetGVar {
+    const VAL: u8 = 5;
+}
+
+#[derive(Debug)]
+pub struct SetLVar;
+impl OpCodeU16 for SetLVar {}
+impl OpCode for SetLVar {
     const VAL: u8 = 6;
 }
 
 #[derive(Debug)]
-pub struct Tuple;
-impl OpCodeU16 for Tuple {}
-impl OpCode for Tuple {
+pub struct GetLVar;
+impl OpCodeU16 for GetLVar {}
+impl OpCode for GetLVar {
     const VAL: u8 = 7;
 }
 
 #[derive(Debug)]
-pub struct Set;
-impl OpCodeU16 for Set {}
-impl OpCode for Set {
+pub struct ToTuple;
+impl OpCodeU16 for ToTuple {}
+impl OpCode for ToTuple {
     const VAL: u8 = 8;
 }
 
 #[derive(Debug)]
-pub struct TupleRn;
-impl OpCodeU16 for TupleRn {}
-impl OpCode for TupleRn {
+pub struct ToSet;
+impl OpCodeU16 for ToSet {}
+impl OpCode for ToSet {
     const VAL: u8 = 9;
 }
 
 #[derive(Debug)]
-pub struct SetRn;
-impl OpCodeU16 for SetRn {}
-impl OpCode for SetRn {
+pub struct ToTupleRn;
+impl OpCodeU16 for ToTupleRn {}
+impl OpCode for ToTupleRn {
     const VAL: u8 = 10;
+}
+
+#[derive(Debug)]
+pub struct ToSetRn;
+impl OpCodeU16 for ToSetRn {}
+impl OpCode for ToSetRn {
+    const VAL: u8 = 11;
+}
+
+#[derive(Debug)]
+pub struct ToFn;
+impl OpCodeU16 for ToFn {}
+impl OpCode for ToFn {
+    const VAL: u8 = 12;
 }
 
 #[derive(Debug)]
@@ -218,7 +242,7 @@ impl OpCode for Index {
 
 #[derive(Debug)]
 pub struct Call;
-impl OpCodeNone for Call {}
+impl OpCodeU16 for Call {}
 impl OpCode for Call {
     const VAL: u8 = 103;
 }
